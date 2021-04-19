@@ -111,7 +111,7 @@ fn scheduled_message_actor_test() {
 
         // Unwrap custom error
         match err.downcast_ref::<NumError>() {
-            Some(num) => assert_eq!(4, num.value),
+            Some(num) => assert!(num.value >= 3),
             None => panic!("isn't a NumError type!"),
         }
     })
