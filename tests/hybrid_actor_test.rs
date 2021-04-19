@@ -2,7 +2,10 @@ extern crate async_trait;
 extern crate simple_actor;
 
 use async_trait::async_trait;
+use tokio::time::Duration;
 
+use simple_actor::actor::client::scheduler::common::Scheduling;
+use simple_actor::actor::client::scheduler::message::MessageScheduler;
 use simple_actor::actor::server::actor::builder::ActorBuilder;
 use simple_actor::common::{HybridHandler, MessageHandler, RequestHandler, Res};
 
@@ -11,6 +14,7 @@ use crate::common::Number;
 mod common;
 
 /// Type of messages
+#[derive(Clone)]
 enum TestMessage {
     Inc(Number),
 }
@@ -92,6 +96,44 @@ fn hybrid_actor() {
         assert_eq!(sum, get_counter);
 
 
+        actor.stop().await.unwrap();
+    })
+}
+
+#[test]
+fn scheduled_hybrid_actor_test() {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        // Hybrid actor custom logic
+        let instance = HybridActor { counter: 0 };
+
+        // Actor which wraps custom logic
+        let actor = ActorBuilder::new().build_hybrid_actor(Box::new(instance));
+
+        // Client for actor
+        let client = actor.client();
+        let client1 = actor.message_client();
+
+        // start actor message scheduler
+        let message_scheduler = MessageScheduler::new(TestMessage::Inc(1), Scheduling::Periodic(Duration::from_millis(30)), client1);
+
+        // waiting for 100ms
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        // abort scheduler
+        message_scheduler.abort();
+
+        // If message processing causes error, actor stops.
+        // The error is available by return value of stop method.
+        // Send invalid value: 0
+        // The message sending was succeeded, so it returns with Ok()
+        let TestResponse::CurrentValue(get_counter) = client.request(TestRequest::Get)
+            .await
+            .unwrap();
+        // check counter
+        assert!(get_counter >= 3);
+
+        // Stop the actor
         actor.stop().await.unwrap();
     })
 }

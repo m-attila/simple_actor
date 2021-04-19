@@ -30,17 +30,19 @@ impl<ME> SchedulerEventHandler<ME> for MessageActorScheduler<ME>
 pub struct MessageScheduler(Scheduler);
 
 impl MessageScheduler {
-    /// Creates periodic scheduler
+    /// Creates message scheduler
     pub fn new<ME: Send + Sync + Clone + 'static>(message: ME, scheduling: Scheduling, client: Box<dyn ActorMessageClient<Message=ME> + Send + Sync>) -> Self {
         let handler = Arc::new(Mutex::new(MessageActorScheduler::new(client)));
         let scheduler = Scheduler::new(scheduling, message, handler);
         MessageScheduler(scheduler)
     }
 
+    /// Graceful stop the scheduler
     pub async fn stop(self) -> Res<()> {
         self.0.stop().await
     }
 
+    /// Abort the scheduler
     pub fn abort(self) {
         self.0.abort()
     }

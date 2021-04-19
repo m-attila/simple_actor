@@ -3,6 +3,7 @@ use crate::actor::client::hybrid::ActorHybridClientImpl;
 use crate::actor::server::actor_server::ActorServer;
 use crate::actor::server::handler::hybrid::ActorHybridServerHandler;
 use crate::common::{HybridHandler, Res, StateHandler};
+use crate::actor::client::message::{ActorMessageClient, ActorMessageClientImpl};
 
 /// Actor implementation that can handle messages and requests as well
 pub struct HybridActor<ME, MR, R>
@@ -31,9 +32,14 @@ impl<ME, MR, R> HybridActor<ME, MR, R>
         }
     }
 
-    /// Returns client for actor
+    /// Returns hybrid client for actor
     pub fn client(&self) -> Box<dyn ActorHybridClient<ME, MR, R>> {
         Box::new(ActorHybridClientImpl::new(self.server.sender()))
+    }
+
+    /// Returns message client for actor
+    pub fn message_client(&self) -> Box<dyn ActorMessageClient<Message=ME> + Send + Sync>{
+        Box::new(ActorMessageClientImpl::new(self.server.sender()))
     }
 
     /// Stop the actor
