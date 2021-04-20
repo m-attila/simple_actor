@@ -1,7 +1,8 @@
 //! Common types and structs for actors
+use std::convert::TryFrom;
+
 use async_trait::async_trait;
 use tokio::sync::oneshot;
-use std::convert::TryFrom;
 
 /// Generic actor error type
 pub type ActorError = Box<dyn std::error::Error + Send + Sync>;
@@ -16,7 +17,7 @@ pub enum SimpleActorError {
     /// Send error
     Send,
     /// Unexpected command in context
-    UnexpectedCommand
+    UnexpectedCommand,
 }
 
 impl std::fmt::Display for SimpleActorError {
@@ -48,7 +49,7 @@ unsafe impl Sync for SimpleActorError {}
 
 /// Actor commands
 #[derive(Debug)]
-pub(crate) enum Command<ME: Send, MR:Send, R: Send> {
+pub(crate) enum Command<ME: Send, MR: Send, R: Send> {
     /// Asynchronous message without response
     Message(ME),
     /// Synchronous message with response
@@ -56,6 +57,7 @@ pub(crate) enum Command<ME: Send, MR:Send, R: Send> {
     /// Stop the actor
     Stop,
 }
+
 
 /// This trait should be implemented to process actor's synchronous messages.
 #[async_trait]
@@ -82,6 +84,16 @@ pub trait RequestHandler: Send {
     /// Process `request` argument and returns with reply. The reply could be
     /// `Ok(:Reply)` or `Err(:ActorError)` that will be received by actor's client.
     async fn process_request(&mut self, _request: Self::Request) -> Res<Self::Reply>;
+
+    /// Returns if the request requires heavy computing
+    fn is_heavy(&self, _request: &Self::Request) -> bool {
+        false
+    }
+
+    /// Returns handle function which generates reply from request in heavy computing process
+    fn get_heavy_transformation(&self) -> Box<dyn Fn(Self::Request) -> Res<Self::Request> + Send> {
+        unimplemented!()
+    }
 }
 
 /// This trait should be implemented to process actor's synchronous messages and asynchronous requests as well.
