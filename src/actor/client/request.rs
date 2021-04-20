@@ -5,7 +5,7 @@ use crate::common::{Command, Res, SimpleActorError};
 
 /// Client which can send synchronous requests and receive replies from the actor
 #[async_trait]
-pub trait ActorRequestClient: Send {
+pub trait ActorRequestClient: Send + Sync{
     type Request: Send;
     type Reply: Send;
 

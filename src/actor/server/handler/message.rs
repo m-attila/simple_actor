@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
-use crate::actor::server::common::ActorServerHandler;
-use crate::common::{Command, MessageHandler, Res, SimpleActorError};
+use crate::actor::server::common::{ActorServerHandler, ProcessResult,ProcessResultBuilder};
+use crate::common::{Command, MessageHandler, SimpleActorError};
 
 /// Message handler implementation for message actors
 pub(crate) struct ActorMessageServerHandler<ME: Send> {
@@ -21,12 +21,12 @@ impl<ME: Send> ActorServerHandler for ActorMessageServerHandler<ME> {
     type Request = ();
     type Reply = ();
 
-    async fn process(&mut self, command: Command<Self::Message, (), ()>) -> Res<()> {
+    async fn process(&mut self, command: Command<Self::Message, (), ()>) -> ProcessResult<Self::Message, Self::Request, Self::Reply> {
         if let Command::Message(message) = command {
             // It can accept only messages
-            self.handler.process_message(message).await
+            ProcessResultBuilder::message_processed(self.handler.process_message(message).await)
         } else {
-            Err(SimpleActorError::UnexpectedCommand.into())
+            ProcessResultBuilder::message_processed_with_error(SimpleActorError::UnexpectedCommand.into())
         }
     }
 }

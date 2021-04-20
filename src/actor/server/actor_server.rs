@@ -23,9 +23,11 @@ impl<ME, MR, R> ActorServer<ME, MR, R>
         let (sender,
             receiver) = mpsc::channel(receive_buffer);
 
+        let internal_sender = sender.clone();
+
         let handle = tokio::spawn(async move {
             let exit_val = match state_handler.init() {
-                Ok(_) => Self::looping(&mut svr_handler, receiver).await,
+                Ok(_) => Self::looping(&mut svr_handler, receiver, internal_sender).await,
                 Err(e) => Err(e)
             };
             state_handler.terminate(&exit_val);
@@ -44,23 +46,46 @@ impl<ME, MR, R> ActorServer<ME, MR, R>
 
     /// Stop server
     pub async fn stop(self) -> Res<()> {
-        let _=self.sender.send(Command::Stop).await;
+        let _ = self.sender.send(Command::Stop).await;
         match self.thread_handle.await {
             Ok(r) => r,
             Err(e) => Err(e.into())
         }
     }
 
-    /// Message/request processor loop
+    /// Message/request processing loop
     async fn looping(svr_handler: &mut Box<dyn ActorServerHandler<Message=ME, Request=MR, Reply=R>>,
-                     mut receiver: mpsc::Receiver<Command<ME, MR, R>>) -> Res<()> {
+                     mut receiver: mpsc::Receiver<Command<ME, MR, R>>,
+                     sender: mpsc::Sender<Command<ME, MR, R>>) -> Res<()> {
         loop {
             match receiver.recv().await {
                 None => break Err(SimpleActorError::Receive.into()),
                 Some(Command::Stop) => break Ok(()),
                 Some(cmd) => {
-                    if let Err(e) = svr_handler.process(cmd).await {
-                        break Err(e);
+                    match svr_handler.process(cmd).await {
+                        Ok(None) => (),
+                        Ok(Some(handle)) => {
+                            let sender_c = sender.clone();
+
+                            tokio::task::spawn(async move {
+                                match handle.await{
+                                    Ok(cmd) => {
+                                        if let Some(command) = cmd {
+                                            if let Command::Request(_, _) = command {
+                                                if let Err(_e)=sender_c.send(command).await{
+                                                    // TODO: how to handle heavy computation send errors
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Err(_) => {
+                                        // TODO: how to handle heavy computation errors
+                                        panic!("heavy computation error")
+                                    }
+                                }
+                            });
+                        }
+                        Err(e) => break Err(e)
                     }
                 }
             }
@@ -77,7 +102,7 @@ mod tests {
 
     use async_trait::async_trait;
 
-    use crate::actor::server::common::ActorServerHandler;
+    use crate::actor::server::common::{ActorServerHandler, ProcessResult};
     use crate::common::{ActorError, ActorErrorHandler, Command, Res, StateHandler};
 
     use super::*;
@@ -170,9 +195,9 @@ mod tests {
         type Request = ();
         type Reply = ();
 
-        async fn process(&mut self, _message: Command<Self::Message, Self::Request, Self::Reply>) -> Res<()> {
+        async fn process(&mut self, _message: Command<Self::Message, Self::Request, Self::Reply>) -> ProcessResult<Self::Message, Self::Request, Self::Reply> {
             async {
-                self.process_error.map_err(|e| e.into())
+                self.process_error.map_or_else(|e|Err(e.into()),|_|Ok(None))
             }.await
         }
     }
