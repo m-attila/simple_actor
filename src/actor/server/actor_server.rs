@@ -63,18 +63,35 @@ impl<ME, MR, R> ActorServer<ME, MR, R>
                 Some(Command::Stop) => break Ok(()),
                 Some(cmd) => {
                     match svr_handler.process(cmd).await {
+                        // Synchronous request was processed, reply was sent
                         Ok(None) => (),
+                        // Asycnhronous request with long heavy computation. Needs to wait for other thread result
                         Ok(Some(handle)) => {
+                            // Own sender of the actor server
                             let sender_c = sender.clone();
 
                             tokio::task::spawn(async move {
-                                match handle.await{
+                                match handle.await {
+                                    // heavy task returns with transformed request, which contains the computing result.
+                                    // It will be processed by synchronous request in the request handler.
+                                    // With this method can be modify the state of the actor by result.
                                     Ok(cmd) => {
                                         if let Some(command) = cmd {
-                                            if let Command::Request(_, _) = command {
-                                                if let Err(_e)=sender_c.send(command).await{
-                                                    // TODO: how to handle heavy computation send errors
+                                            // Heavy computing was returned with a new request
+                                            match command{
+                                                Command::Request(_, _) => {
+                                                    // The tranformed result will be send the actor server itself.
+                                                    if let Err(_) = sender_c.send(command).await {
+                                                        panic!("Actor server stopped")
+                                                    }
                                                 }
+                                                Command::RequestReplyError(_, _) => {
+                                                    // The tranformed result will be send the actor server itself.
+                                                    if let Err(_) = sender_c.send(command).await {
+                                                        panic!("Actor server stopped")
+                                                    }
+                                                }
+                                                _ => panic!("Unexpected command")
                                             }
                                         }
                                     }
@@ -197,7 +214,7 @@ mod tests {
 
         async fn process(&mut self, _message: Command<Self::Message, Self::Request, Self::Reply>) -> ProcessResult<Self::Message, Self::Request, Self::Reply> {
             async {
-                self.process_error.map_or_else(|e|Err(e.into()),|_|Ok(None))
+                self.process_error.map_or_else(|e| Err(e.into()), |_| Ok(None))
             }.await
         }
     }

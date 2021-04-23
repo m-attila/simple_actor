@@ -17,9 +17,12 @@ enum Request {
     Inc,
     Get,
     HeavyComputing,
-    HeavyComputingReady(Number)
+    HeavyComputingShorter,
+    HeavyComputingReady(Number),
+    HeavyComputingWithError,
 }
 
+#[derive(Debug)]
 enum Response {
     Success,
     GetResult(Number),
@@ -36,17 +39,32 @@ impl TestActor {
     }
 
     fn heavy_computing(request: Request) -> Res<Request> {
-        if let Request::HeavyComputing = request {
-            println!("Start heavy computing");
-            std::thread::sleep(Duration::from_secs(2));
-            println!("Stop heavy computing");
-            // Generate result of the heavy computing by internal 'Request'
-            // which can be processed later by simple request
-            // This procedure enable to reach the TestActor state for this result processing
-            // in 'process_request' function
-            Ok(Request::HeavyComputingReady(100000))
-        } else {
-            Err(format!("Invalid request:{:?}", request).into())
+        match request {
+            Request::HeavyComputing => {
+                println!("Start heavy computing");
+                std::thread::sleep(Duration::from_secs(2));
+                println!("Stop heavy computing");
+                // Generate result of the heavy computing by internal 'Request'
+                // which can be processed later by simple request
+                // This procedure enable to reach the TestActor state for this result processing
+                // in 'process_request' function
+                Ok(Request::HeavyComputingReady(100000))
+            }
+            Request::HeavyComputingShorter => {
+                println!("Start shorter heavy computing");
+                std::thread::sleep(Duration::from_millis(50));
+                println!("Stop shorter heavy computing");
+                // Generate result of the heavy computing by internal 'Request'
+                // which can be processed later by simple request
+                // This procedure enable to reach the TestActor state for this result processing
+                // in 'process_request' function
+                Ok(Request::HeavyComputingReady(200000))
+            }
+            Request::HeavyComputingWithError => {
+                std::thread::sleep(Duration::from_millis(50));
+                Err("error in heavy".into())
+            }
+            _ => Err(format!("Invalid request:{:?}", request).into())
         }
     }
 }
@@ -60,6 +78,8 @@ impl RequestHandler for TestActor {
         match request {
             // Is the request required heavy computing?
             Request::HeavyComputing => true,
+            Request::HeavyComputingShorter => true,
+            Request::HeavyComputingWithError => true,
             _ => false
         }
     }
@@ -86,6 +106,10 @@ impl RequestHandler for TestActor {
             _ => panic!("Illegal request")
         }
     }
+
+    fn reply_error(&self, result: Res<Self::Reply>) {
+        println!("Unable to send reply: {:?}", result)
+    }
 }
 
 
@@ -98,15 +122,40 @@ fn request_actor() {
 
         let actor = ActorBuilder::new().build_request_actor(Box::new(instance));
         let client = actor.client();
-        let client_heavy=actor.client();
+        let client_heavy = actor.client();
+        let client_heavy2 = actor.client();
+        let client_heavy3 = actor.client();
+        let client_heavy4 = actor.client();
 
         let mut sum: u128 = 0;
 
         // starts heavy computing
-        let heavy_req =tokio::spawn(async move{
+        let heavy_req = tokio::spawn(async move {
             println!("Start to send heavy computing request");
             client_heavy.request(Request::HeavyComputing).await
         });
+
+        // starts heavy computing what will cause an error
+        let heavy_req_err = tokio::spawn(async move {
+            println!("Start to send heavy computing request with returning error");
+            client_heavy2.request(Request::HeavyComputingWithError).await
+        });
+
+        // starts heavy computing but the client will not wait for the reply
+        let heavy_req_abort = tokio::spawn(async move {
+            println!("Start to send heavy computing and client will be aborted");
+            client_heavy3.request(Request::HeavyComputingShorter).await
+        });
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        heavy_req_abort.abort();
+
+        // starts heavy computing what will cause error, but the client will not wait for the reply
+        let heavy_req_err_abort = tokio::spawn(async move {
+            println!("Start to send bad heavy computing and client will be aborted");
+            client_heavy4.request(Request::HeavyComputingWithError).await
+        });
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        heavy_req_err_abort.abort();
 
         println!("Start to send client requests...");
 
@@ -122,10 +171,15 @@ fn request_actor() {
             assert_eq!(sum, get_counter);
         } else { panic!("Bad response!") }
 
-        if let Ok(Response::HeavyResult(res))= heavy_req.await.unwrap(){
+        if let Ok(Response::HeavyResult(res)) = heavy_req.await.unwrap() {
             println!("Got heavy result: {}", res)
+        } else {
+            panic!("No heavy result")
         }
-        else {
+
+        if let Err(x) = heavy_req_err.await.unwrap() {
+            println!("Got heavy error result: {}", x)
+        } else {
             panic!("No heavy result")
         }
 

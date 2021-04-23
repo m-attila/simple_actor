@@ -1,9 +1,8 @@
-use tokio::task::JoinHandle;
-
 use async_trait::async_trait;
 use tokio::sync::oneshot;
+use tokio::task::JoinHandle;
 
-use crate::common::{ActorError, Command, Res};
+use crate::common::{ActorError, Command, RequestHandler, Res, SimpleActorError};
 
 /// Result type of the [`ActorServerHandler::process`] function
 pub(crate) type ProcessResult<ME, MR, R> = Res<Option<JoinHandle<Option<Command<ME, MR, R>>>>>;
@@ -30,10 +29,18 @@ impl ProcessResultBuilder {
         Ok(None)
     }
 
-    /// Builds [`ProcessResult`] when synchronous request was processed by internal error
-    pub(crate) fn request_processed_with_error<ME, MR, R>(error: ActorError) -> ProcessResult<ME, MR, R>
+    /// Builds [`ProcessResult`] when synchronous request's reply was not send to client
+    pub(crate) fn request_unable_to_send_reply<ME, MR, R>(handler: &dyn RequestHandler<Request=MR, Reply=R>,
+                                                          reply: Res<R>) -> ProcessResult<ME, MR, R>
         where ME: Send, MR: Send, R: Send {
-        Err(error)
+        handler.reply_error(reply);
+        Ok(None)
+    }
+
+    /// Build [`ProcessResult`] when request is not valid on the context
+    pub(crate) fn request_bad<ME, MR, R>() -> ProcessResult<ME, MR, R>
+        where ME: Send, MR: Send, R: Send {
+        Err(SimpleActorError::UnexpectedCommand.into())
     }
 
     /// Builds [`ProcessResult`] when asynchronous request was transformed the synchronous one
@@ -49,9 +56,9 @@ impl ProcessResultBuilder {
     }
 
     /// Builds [`ProcessResult`] when asynchronous request reply was failed internally
-    pub(crate) fn request_transformed_async_send_error<ME, MR, R>(_error: ActorError) -> Option<Command<ME, MR, R>>
+    pub(crate) fn request_transformed_async_send_error<ME, MR, R>(reply: Res<R>, error: ActorError) -> Option<Command<ME, MR, R>>
         where ME: Send, MR: Send, R: Send {
-        None
+        Some(Command::<ME, MR, R>::RequestReplyError(reply, error))
     }
 }
 
