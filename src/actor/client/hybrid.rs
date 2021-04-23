@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 
@@ -21,14 +23,17 @@ pub(crate) struct ActorHybridClientImpl<ME, MR, R>
 }
 
 impl<ME, MR, R> ActorHybridClientImpl<ME, MR, R>
-    where ME: 'static + Send,
-          MR: 'static + Send,
-          R: 'static + Send {
+    where ME: 'static + Send + Debug,
+          MR: 'static + Send + Debug,
+          R: 'static + Send + Debug {
     /// Creates new hybrid actor client
-    pub(crate) fn new(sender: mpsc::Sender<Command<ME, MR, R>>) -> Self {
+    pub(crate) fn new(name: String, sender: mpsc::Sender<Command<ME, MR, R>>) -> Self {
+        let mname = name.clone();
+        let rname = name.clone();
+
         ActorHybridClientImpl {
-            message_client: Box::new(ActorMessageClientImpl::<ME, MR, R>::new(sender.clone())),
-            request_client: Box::new(ActorRequestClientImpl::<MR, R, ME>::new(sender)),
+            message_client: Box::new(ActorMessageClientImpl::<ME, MR, R>::new(mname, sender.clone())),
+            request_client: Box::new(ActorRequestClientImpl::<MR, R, ME>::new(rname, sender)),
         }
     }
 }
@@ -39,6 +44,10 @@ impl<ME: Send, MR: Send, R: Send> ActorMessageClient for ActorHybridClientImpl<M
 
     async fn message(&self, m: ME) -> Res<()> {
         self.message_client.message(m).await
+    }
+
+    fn name(&self) -> String {
+        self.message_client.name()
     }
 }
 

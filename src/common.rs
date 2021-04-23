@@ -1,4 +1,5 @@
 //! Common types and structs for actors
+use log::{error};
 use std::convert::TryFrom;
 
 use async_trait::async_trait;
@@ -95,12 +96,13 @@ pub trait RequestHandler: Send {
 
     /// Returns handle function which generates reply from request in heavy computing process
     fn get_heavy_transformation(&self) -> Box<dyn Fn(Self::Request) -> Res<Self::Request> + Send> {
+        error!("Please implement get_heavy_transformation(...) method in RequestHandler implementation");
         unimplemented!()
     }
 
     /// Unable to send reply for request
     fn reply_error(&self, _result: Res<Self::Reply>){
-
+        error!("Unable to send reply for request. Please reimplement reply_error(...) method in RequestHandler implementation");
     }
 }
 
@@ -113,11 +115,11 @@ pub trait StateHandler: Send {
     /// Initialization event
     /// If this method returns with `Ok(())` the initialization was success otherwise it was fail and
     /// actor stops immediately.
-    fn init(&mut self) -> Res<()>;
+    fn init(&mut self, name: String) -> Res<()>;
 
     /// Actor terminate event
     /// This method receives the reason of termination in `reason` argument.
-    fn terminate(&mut self, _reason: &Res<()>);
+    fn terminate(&mut self, name: String, _reason: &Res<()>);
 }
 
 /// Helps to identify and process boxed dynamic error by custom error type.

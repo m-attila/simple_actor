@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use log::{error, info, trace, warn};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time;
@@ -9,6 +10,7 @@ use tokio::time::Duration;
 use crate::common::Res;
 
 /// Type of the scheduling
+#[derive(Debug)]
 pub enum Scheduling {
     /// Periodic with given interval
     Periodic(time::Duration),
@@ -61,17 +63,28 @@ impl<E: Send> SchedulerData<E> {
             }
         });
 
+        trace!("Scheduler loop was started with `{:?}` scheduling", &self.stype);
+
         loop {
             self.tick().await;
+            trace!("Scheduler was fired");
             let mut x = self.handler.lock().await;
             let result = x.handle_timer_event(&self.event).await;
             match result {
                 Ok(again) => {
-                    if !again { break Ok(()); }
+                    trace!("Scheduled event was handled success");
+                    if !again {
+                        trace!("Handler was stopped the scheduler");
+                        break Ok(());
+                    }
                 }
-                Err(e) => break Err(e.into())
+                Err(e) => {
+                    error!("Error occurred by handling scheduled event: `{:?}`", e);
+                    break Err(e.into());
+                }
             }
             if let Scheduling::OnceAt(_) = self.stype {
+                trace!("Because event by scheduled only once, scheduler was stopped");
                 break Ok(());
             }
         }
@@ -87,6 +100,7 @@ impl Scheduler {
     /// Starts new scheduler
     pub fn new<E: 'static + Send + Sync>(stype: Scheduling, event: E,
                                          handler: Arc<Mutex<dyn SchedulerEventHandler<E>>>) -> Self {
+        info!("Scheduler was created: {:?}", stype);
         let handle = tokio::spawn(async move {
             let mut data = SchedulerData::new(event, stype, handler);
             data.looping().await
@@ -97,14 +111,21 @@ impl Scheduler {
     /// Stops the scheduler gracefully
     pub async fn stop(self) -> Res<()> {
         match self.thread_handle.await {
-            Ok(r) => r,
-            Err(e) => Err(e.into())
+            Ok(r) => {
+                info!("Scheduler was stopped by result: `{:?}`", r);
+                r
+            }
+            Err(e) => {
+                error!("Scheduler was stopped by error: `{:?}`", e);
+                Err(e.into())
+            }
         }
     }
 
     /// Abort the scheduler
     pub fn abort(self) {
-        self.thread_handle.abort()
+        self.thread_handle.abort();
+        warn!("Scheduler was aborted");
     }
 }
 

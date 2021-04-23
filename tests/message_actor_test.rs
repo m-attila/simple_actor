@@ -1,7 +1,10 @@
 extern crate async_trait;
 extern crate simple_actor;
+extern crate simple_logger;
 
 use async_trait::async_trait;
+use log::LevelFilter;
+use simple_logger::SimpleLogger;
 use tokio::time::Duration;
 
 use simple_actor::actor::client::scheduler::common::Scheduling;
@@ -34,7 +37,11 @@ impl MessageHandler for TestActor {
 }
 
 #[test]
+#[allow(unused_must_use)]
 fn message_actor_test() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
+
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -42,7 +49,7 @@ fn message_actor_test() {
         let instance = TestActor { counter: 0 };
 
         // wraps logic into message actor
-        let actor = ActorBuilder::new().build_message_actor(Box::new(instance));
+        let actor = ActorBuilder::new().name("TestActor").build_message_actor(Box::new(instance));
 
         // gets client for actor
         let client = actor.client();
@@ -76,7 +83,11 @@ fn message_actor_test() {
 }
 
 #[test]
+#[allow(unused_must_use)]
 fn scheduled_message_actor_test() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
+
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -84,7 +95,7 @@ fn scheduled_message_actor_test() {
         let instance = TestActor { counter: 0 };
 
         // wraps logic into message actor
-        let actor = ActorBuilder::new().build_message_actor(Box::new(instance));
+        let actor = ActorBuilder::new().name("TestActor").build_message_actor(Box::new(instance));
 
         // gets client for actor
         let client = actor.client();

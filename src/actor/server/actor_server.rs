@@ -1,3 +1,6 @@
+use std::fmt::Debug;
+
+use log::{debug, error, trace};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -9,34 +12,46 @@ pub(crate) struct ActorServer<ME, MR, R>
     where ME: Send,
           MR: Send,
           R: Send {
+    name: String,
     sender: mpsc::Sender<Command<ME, MR, R>>,
     thread_handle: JoinHandle<Res<()>>,
 }
 
 impl<ME, MR, R> ActorServer<ME, MR, R>
-    where ME: 'static + Send,
-          MR: 'static + Send,
-          R: 'static + Send {
+    where ME: 'static + Send + Debug,
+          MR: 'static + Send + Debug,
+          R: 'static + Send + Debug {
     /// Create new actor server
-    pub(crate) fn new(mut svr_handler: Box<dyn ActorServerHandler<Message=ME, Request=MR, Reply=R>>,
+    pub(crate) fn new(name: String,
+                      mut svr_handler: Box<dyn ActorServerHandler<Message=ME, Request=MR, Reply=R>>,
                       mut state_handler: Box<dyn StateHandler>, receive_buffer: usize) -> Self {
         let (sender,
             receiver) = mpsc::channel(receive_buffer);
 
         let internal_sender = sender.clone();
+        let i_name = name.clone();
 
         let handle = tokio::spawn(async move {
-            let exit_val = match state_handler.init() {
-                Ok(_) => Self::looping(&mut svr_handler, receiver, internal_sender).await,
-                Err(e) => Err(e)
+            let exit_val = match state_handler.init(i_name.clone()) {
+                Ok(_) => Self::looping(&mut svr_handler, receiver, internal_sender, i_name.clone()).await,
+                Err(e) => {
+                    error!("`{}` actor initialization was failed: `{:?}`", i_name, e);
+                    Err(e)
+                }
             };
-            state_handler.terminate(&exit_val);
+            state_handler.terminate(i_name.clone(), &exit_val);
             exit_val
         });
         ActorServer {
+            name,
             sender,
             thread_handle: handle,
         }
+    }
+
+    /// Returns the name of the actor
+    pub fn name(&self) -> String {
+        String::from(&self.name)
     }
 
     /// Returns sender channel
@@ -56,57 +71,78 @@ impl<ME, MR, R> ActorServer<ME, MR, R>
     /// Message/request processing loop
     async fn looping(svr_handler: &mut Box<dyn ActorServerHandler<Message=ME, Request=MR, Reply=R>>,
                      mut receiver: mpsc::Receiver<Command<ME, MR, R>>,
-                     sender: mpsc::Sender<Command<ME, MR, R>>) -> Res<()> {
-        loop {
-            match receiver.recv().await {
-                None => break Err(SimpleActorError::Receive.into()),
-                Some(Command::Stop) => break Ok(()),
-                Some(cmd) => {
-                    match svr_handler.process(cmd).await {
-                        // Synchronous request was processed, reply was sent
-                        Ok(None) => (),
-                        // Asycnhronous request with long heavy computation. Needs to wait for other thread result
-                        Ok(Some(handle)) => {
-                            // Own sender of the actor server
-                            let sender_c = sender.clone();
+                     sender: mpsc::Sender<Command<ME, MR, R>>,
+                     name: String) -> Res<()> {
+        debug!("`{}` actor's receiver loop was started", name);
+        let res =
+            loop {
+                match receiver.recv().await {
+                    None => break {
+                        error!("`{}` actor's receiver channel was closed", name);
+                        Err(SimpleActorError::Receive.into())
+                    },
+                    Some(Command::Stop) => break {
+                        debug!("`{}` actor: stop command was received", name);
+                        Ok(())
+                    },
+                    Some(cmd) => {
+                        trace!("`{:?}` command was received in `{}` actor", cmd, name);
+                        match svr_handler.process(cmd).await {
+                            // Synchronous request was processed, reply was sent
+                            Ok(None) => (),
+                            // Asycnhronous request with long heavy computation. Needs to wait for other thread result
+                            Ok(Some(handle)) => {
+                                // Own sender of the actor server
+                                let sender_c = sender.clone();
+                                let i_name = name.clone();
 
-                            tokio::task::spawn(async move {
-                                match handle.await {
-                                    // heavy task returns with transformed request, which contains the computing result.
-                                    // It will be processed by synchronous request in the request handler.
-                                    // With this method can be modify the state of the actor by result.
-                                    Ok(cmd) => {
-                                        if let Some(command) = cmd {
-                                            // Heavy computing was returned with a new request
-                                            match command{
-                                                Command::Request(_, _) => {
-                                                    // The tranformed result will be send the actor server itself.
-                                                    if let Err(_) = sender_c.send(command).await {
-                                                        panic!("Actor server stopped")
+                                tokio::task::spawn(async move {
+                                    trace!("Heavy computation was started in actor `{}`", i_name);
+                                    match handle.await {
+                                        // heavy task returns with transformed request, which contains the computing result.
+                                        // It will be processed by synchronous request in the request handler.
+                                        // With this method can be modify the state of the actor by result.
+                                        Ok(cmd) => {
+                                            trace!("Heavy computation was ready in actor `{}`", i_name);
+                                            if let Some(command) = cmd {
+                                                // Heavy computing was returned with a new request
+                                                match command {
+                                                    Command::Request(_, _) => {
+                                                        // The tranformed result will be send the actor server itself.
+                                                        if let Err(_) = sender_c.send(command).await {
+                                                            error!("`{}` actor unable to send transformed request to itself", i_name);
+                                                            panic!("Actor server stopped")
+                                                        }
+                                                    }
+                                                    Command::RequestReplyError(_, _) => {
+                                                        // The tranformed result will be send the actor server itself.
+                                                        if let Err(_) = sender_c.send(command).await {
+                                                            error!("`{}` actor unable to send transformed request to itself", i_name);
+                                                            panic!("Actor server stopped")
+                                                        }
+                                                    }
+                                                    _ => {
+                                                        error!("Unexpected command was received in actor `{}`", i_name);
+                                                        panic!("Unexpected command")
                                                     }
                                                 }
-                                                Command::RequestReplyError(_, _) => {
-                                                    // The tranformed result will be send the actor server itself.
-                                                    if let Err(_) = sender_c.send(command).await {
-                                                        panic!("Actor server stopped")
-                                                    }
-                                                }
-                                                _ => panic!("Unexpected command")
                                             }
                                         }
+                                        Err(e) => {
+                                            // TODO: how to handle heavy computation errors
+                                            error!("Heavy computation processing was failed in actor `{}`: `{:?}`", i_name, e);
+                                            panic!("heavy computation error")
+                                        }
                                     }
-                                    Err(_) => {
-                                        // TODO: how to handle heavy computation errors
-                                        panic!("heavy computation error")
-                                    }
-                                }
-                            });
+                                });
+                            }
+                            Err(e) => break Err(e)
                         }
-                        Err(e) => break Err(e)
                     }
                 }
-            }
-        }
+            };
+        debug!("`{}` actor's receiver loop was exited with result: `{:?}`", name, res);
+        res
     }
 }
 
@@ -180,13 +216,13 @@ mod tests {
     }
 
     impl StateHandler for TestStateHandler {
-        fn init(&mut self) -> Res<()> {
+        fn init(&mut self, _name : String) -> Res<()> {
             let mut ptr = self.init_called.lock().unwrap();
             *ptr = true;
             std::mem::replace(&mut self.init_return, Ok(()))
         }
 
-        fn terminate(&mut self, reason: &Res<()>) {
+        fn terminate(&mut self, _name: String, reason: &Res<()>) {
             match reason {
                 Ok(_) => *self.terminate_result.lock().unwrap() = Some(Ok(())),
                 Err(e) => {
@@ -242,6 +278,7 @@ mod tests {
                 let test_svr_handler = TestServerHandler { process_error: Ok(()) };
                 // Create actor server
                 let actor_server = ActorServer::<String, (), ()>::new(
+                    "noname".to_string(),
                     Box::new(test_svr_handler),
                     Box::new(test_state_handler), 32);
 
@@ -294,6 +331,7 @@ mod tests {
 
                 // Create actor server
                 let actor_server = ActorServer::<String, (), ()>::new(
+                    "noname".to_string(),
                     Box::new(test_svr_handler),
                     Box::new(test_state_handler), 32);
 
@@ -348,6 +386,7 @@ mod tests {
 
                 // Create actor server
                 let actor_server = ActorServer::<String, (), ()>::new(
+                    "noname".to_string(),
                     Box::new(test_svr_handler),
                     Box::new(test_state_handler), 32);
 
