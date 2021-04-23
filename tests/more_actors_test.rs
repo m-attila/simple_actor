@@ -1,5 +1,10 @@
 extern crate async_trait;
 extern crate simple_actor;
+extern crate simple_logger;
+
+use log::info;
+use log::LevelFilter;
+use simple_logger::SimpleLogger;
 
 use simple_actor::actor::server::actor::builder::ActorBuilder;
 
@@ -21,6 +26,7 @@ mod producer {
     use super::consumer;
 
     /// Producer requests
+    #[derive(Debug)]
     pub enum Requests {
         /// Fill request
         Fill(u32, u32),
@@ -31,6 +37,7 @@ mod producer {
     }
 
     /// Producer replies
+    #[derive(Debug)]
     pub enum Replies {
         /// Fill request was success
         Filled,
@@ -119,6 +126,7 @@ pub mod consumer {
     use simple_actor::common::{HybridHandler, MessageHandler, RequestHandler, Res};
 
     /// Consumer messages
+    #[derive(Debug)]
     pub enum Messages {
         /// Clear numbers message
         Clear,
@@ -126,12 +134,14 @@ pub mod consumer {
         Put(u32),
     }
 
+    #[derive(Debug)]
     pub enum Requests {
         /// Calculate request for stored numbers
         Calculate,
     }
 
     /// Consumer response
+    #[derive(Debug)]
     pub enum Replies {
         /// Reply for Calculate request
         Result(u128),
@@ -240,19 +250,23 @@ pub mod consumer {
 }
 
 #[test]
+#[allow(unused_must_use)]
 fn calc_test() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
+
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
         // Sum calculator logic
         let sum_calc = Box::new(Calculator::new(Box::new(SumCalculatorFunction {})));
         // Wraps into 'consumer' actor
-        let sum_calc_actor = ActorBuilder::new().build_hybrid_actor(sum_calc);
+        let sum_calc_actor = ActorBuilder::new().name("SumCalculator").build_hybrid_actor(sum_calc);
 
         // Average calculator logic
         let avg_calc = Box::new(Calculator::new(Box::new(AvgCalculatorFunction {})));
         // Wraps into 'consumer' actor
-        let avg_calc_actor = ActorBuilder::new().build_hybrid_actor(avg_calc);
+        let avg_calc_actor = ActorBuilder::new().name("AvgCalculator").build_hybrid_actor(avg_calc);
 
         // Producer logic
         let mut producer = Producer::new();
@@ -261,7 +275,7 @@ fn calc_test() {
         producer.set_avg_client(avg_calc_actor.client());
 
         // Producer actor
-        let prod_actor = ActorBuilder::new().build_request_actor(Box::new(producer));
+        let prod_actor = ActorBuilder::new().name("Producer").build_request_actor(Box::new(producer));
         // Gets producer's client
         let prod_actor_cl = prod_actor.client();
 
@@ -270,12 +284,12 @@ fn calc_test() {
 
         // Request to get sums
         if let Replies::Sum(sums) = prod_actor_cl.request(producer::Requests::GetSum).await.unwrap() {
-            println!("Sums: {}", sums);
+            info!("Sum is: {}", sums);
         }
 
         // Request to get averagges
         if let Replies::Avg(avgs) = prod_actor_cl.request(producer::Requests::GetAvg).await.unwrap() {
-            println!("Avgs: {}", avgs);
+            info!("Average is: {}", avgs);
         }
 
         // stop producer

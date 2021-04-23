@@ -1,19 +1,25 @@
 extern crate async_trait;
 extern crate simple_actor;
+extern crate simple_logger;
 
 use async_trait::async_trait;
+use log::{info, LevelFilter};
+use simple_logger::SimpleLogger;
 
 use simple_actor::actor::server::actor::builder::ActorBuilder;
 use simple_actor::common::{ActorError, RequestHandler, Res};
 
-mod common;
 use crate::common::Number;
 
+mod common;
+
+#[derive(Debug)]
 enum Request {
     Inc(Number),
     Get,
 }
 
+#[derive(Debug)]
 enum Response {
     Success,
     CurrentValue(Number),
@@ -47,13 +53,17 @@ impl RequestHandler for TestActor {
 }
 
 #[test]
+#[allow(unused_must_use)]
 fn request_actor() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
+
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
         let instance = TestActor { counter: 0 };
 
-        let actor = ActorBuilder::new().build_request_actor(Box::new(instance));
+        let actor = ActorBuilder::new().name("TestActor").build_request_actor(Box::new(instance));
         let client = actor.client();
 
         let mut sum: u128 = 0;
@@ -71,7 +81,7 @@ fn request_actor() {
         } else { panic!("Bad response!") }
 
         let exit = actor.stop().await;
-        println!("Exit with: {:?}", exit);
+        info!("Exit with: {:?}", exit);
     })
 }
 

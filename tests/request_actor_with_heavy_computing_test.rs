@@ -1,8 +1,10 @@
 extern crate async_trait;
 extern crate simple_actor;
-
+extern crate simple_logger;
 
 use async_trait::async_trait;
+use log::{info, LevelFilter};
+use simple_logger::SimpleLogger;
 use tokio::time::Duration;
 
 use simple_actor::actor::server::actor::builder::ActorBuilder;
@@ -41,9 +43,9 @@ impl TestActor {
     fn heavy_computing(request: Request) -> Res<Request> {
         match request {
             Request::HeavyComputing => {
-                println!("Start heavy computing");
+                info!("Start heavy computing");
                 std::thread::sleep(Duration::from_secs(2));
-                println!("Stop heavy computing");
+                info!("Stop heavy computing");
                 // Generate result of the heavy computing by internal 'Request'
                 // which can be processed later by simple request
                 // This procedure enable to reach the TestActor state for this result processing
@@ -51,9 +53,9 @@ impl TestActor {
                 Ok(Request::HeavyComputingReady(100000))
             }
             Request::HeavyComputingShorter => {
-                println!("Start shorter heavy computing");
+                info!("Start shorter heavy computing");
                 std::thread::sleep(Duration::from_millis(50));
-                println!("Stop shorter heavy computing");
+                info!("Stop shorter heavy computing");
                 // Generate result of the heavy computing by internal 'Request'
                 // which can be processed later by simple request
                 // This procedure enable to reach the TestActor state for this result processing
@@ -92,13 +94,13 @@ impl RequestHandler for TestActor {
         match request {
             // Simple synchronous request
             Request::Inc => {
-                println!("Receive Inc request");
+                info!("Receive Inc request");
                 self.counter += 1;
                 Ok(Response::Success)
             }
             // Simple synchronous request
             Request::Get => {
-                println!("Receive Get request");
+                info!("Receive Get request");
                 Ok(Response::GetResult(self.counter))
             }
             // The result of the heavy computing. Wrap info client's response.
@@ -108,19 +110,22 @@ impl RequestHandler for TestActor {
     }
 
     fn reply_error(&self, result: Res<Self::Reply>) {
-        println!("Unable to send reply: {:?}", result)
+        info!("Unable to send reply: {:?}", result)
     }
 }
 
 
 #[test]
+#[allow(unused_must_use)]
 fn request_actor() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
         let instance = TestActor::new();
 
-        let actor = ActorBuilder::new().build_request_actor(Box::new(instance));
+        let actor = ActorBuilder::new().name("TestActor").build_request_actor(Box::new(instance));
         let client = actor.client();
         let client_heavy = actor.client();
         let client_heavy2 = actor.client();
@@ -131,19 +136,19 @@ fn request_actor() {
 
         // starts heavy computing
         let heavy_req = tokio::spawn(async move {
-            println!("Start to send heavy computing request");
+            info!("Start to send heavy computing request");
             client_heavy.request(Request::HeavyComputing).await
         });
 
         // starts heavy computing what will cause an error
         let heavy_req_err = tokio::spawn(async move {
-            println!("Start to send heavy computing request with returning error");
+            info!("Start to send heavy computing request with returning error");
             client_heavy2.request(Request::HeavyComputingWithError).await
         });
 
         // starts heavy computing but the client will not wait for the reply
         let heavy_req_abort = tokio::spawn(async move {
-            println!("Start to send heavy computing and client will be aborted");
+            info!("Start to send heavy computing and client will be aborted");
             client_heavy3.request(Request::HeavyComputingShorter).await
         });
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -151,13 +156,13 @@ fn request_actor() {
 
         // starts heavy computing what will cause error, but the client will not wait for the reply
         let heavy_req_err_abort = tokio::spawn(async move {
-            println!("Start to send bad heavy computing and client will be aborted");
+            info!("Start to send bad heavy computing and client will be aborted");
             client_heavy4.request(Request::HeavyComputingWithError).await
         });
         tokio::time::sleep(Duration::from_millis(10)).await;
         heavy_req_err_abort.abort();
 
-        println!("Start to send client requests...");
+        info!("Start to send client requests...");
 
         for _ in 1..=100u128 {
             if let Err(_) = client.request(Request::Inc).await {
@@ -172,19 +177,19 @@ fn request_actor() {
         } else { panic!("Bad response!") }
 
         if let Ok(Response::HeavyResult(res)) = heavy_req.await.unwrap() {
-            println!("Got heavy result: {}", res)
+            info!("Got heavy result: {}", res)
         } else {
             panic!("No heavy result")
         }
 
         if let Err(x) = heavy_req_err.await.unwrap() {
-            println!("Got heavy error result: {}", x)
+            info!("Got heavy error result: {}", x)
         } else {
             panic!("No heavy result")
         }
 
         let exit = actor.stop().await;
-        println!("Exit with: {:?}", exit);
+        info!("Exit with: {:?}", exit);
     })
 }
 

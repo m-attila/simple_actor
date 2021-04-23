@@ -1,7 +1,10 @@
 extern crate async_trait;
 extern crate simple_actor;
+extern crate simple_logger;
 
 use async_trait::async_trait;
+use log::LevelFilter;
+use simple_logger::SimpleLogger;
 use tokio::time::Duration;
 
 use simple_actor::actor::client::scheduler::common::Scheduling;
@@ -14,17 +17,19 @@ use crate::common::Number;
 mod common;
 
 /// Type of messages
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum TestMessage {
     Inc(Number),
 }
 
 /// Type of requests
+#[derive(Debug)]
 enum TestRequest {
     Get,
 }
 
 /// Type of requests' responses
+#[derive(Debug)]
 enum TestResponse {
     CurrentValue(Number),
 }
@@ -66,7 +71,11 @@ impl HybridHandler for HybridActor {}
 
 
 #[test]
+#[allow(unused_must_use)]
 fn hybrid_actor() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
+
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -74,7 +83,7 @@ fn hybrid_actor() {
         let instance = HybridActor { counter: 0 };
 
         // Actor which wraps custom logic
-        let actor = ActorBuilder::new().build_hybrid_actor(Box::new(instance));
+        let actor = ActorBuilder::new().name("HybridActor").build_hybrid_actor(Box::new(instance));
 
         // Client for actor
         let client = actor.client();
@@ -101,7 +110,11 @@ fn hybrid_actor() {
 }
 
 #[test]
+#[allow(unused_must_use)]
 fn scheduled_hybrid_actor_test() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
+
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async {
@@ -109,7 +122,7 @@ fn scheduled_hybrid_actor_test() {
         let instance = HybridActor { counter: 0 };
 
         // Actor which wraps custom logic
-        let actor = ActorBuilder::new().build_hybrid_actor(Box::new(instance));
+        let actor = ActorBuilder::new().name("HybridActor").build_hybrid_actor(Box::new(instance));
 
         // Client for actor
         let client = actor.client();
