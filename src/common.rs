@@ -3,6 +3,7 @@ use std::convert::TryFrom;
 
 use async_trait::async_trait;
 use tokio::sync::oneshot;
+use std::any::Any;
 
 /// Generic actor error type
 pub type ActorError = Box<dyn std::error::Error + Send + Sync>;
@@ -56,6 +57,8 @@ pub(crate) enum Command<ME: Send, MR: Send, R: Send> {
     Request(MR, oneshot::Sender<Res<R>>),
     /// Stop the actor
     Stop,
+    /// Unable to send reply for processed heavy computing request
+    RequestReplyError(Res<R>, ActorError),
 }
 
 
@@ -94,11 +97,16 @@ pub trait RequestHandler: Send {
     fn get_heavy_transformation(&self) -> Box<dyn Fn(Self::Request) -> Res<Self::Request> + Send> {
         unimplemented!()
     }
+
+    /// Unable to send reply for request
+    fn reply_error(&self, _result: Res<Self::Reply>){
+
+    }
 }
 
 /// This trait should be implemented to process actor's synchronous messages and asynchronous requests as well.
 #[async_trait]
-pub trait HybridHandler: Send + MessageHandler + RequestHandler {}
+pub trait HybridHandler: Any + Send + MessageHandler + RequestHandler {}
 
 /// This trait should be implemented to handle actor initialization and terminate events.
 pub trait StateHandler: Send {
