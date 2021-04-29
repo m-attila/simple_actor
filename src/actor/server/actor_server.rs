@@ -90,7 +90,7 @@ impl<ME, MR, R> ActorServer<ME, MR, R>
                         match svr_handler.process(cmd).await {
                             // Synchronous request was processed, reply was sent
                             Ok(None) => (),
-                            // Asycnhronous request with long heavy computation. Needs to wait for other thread result
+                            // Asynchronous request with long heavy computation. Needs to wait for other thread result
                             Ok(Some(handle)) => {
                                 // Own sender of the actor server
                                 let sender_c = sender.clone();
@@ -108,14 +108,14 @@ impl<ME, MR, R> ActorServer<ME, MR, R>
                                                 // Heavy computing was returned with a new request
                                                 match command {
                                                     Command::Request(_, _) => {
-                                                        // The tranformed result will be send the actor server itself.
+                                                        // The transformed result will be send the actor server itself.
                                                         if let Err(_) = sender_c.send(command).await {
                                                             error!("`{}` actor unable to send transformed request to itself", i_name);
                                                             panic!("Actor server stopped")
                                                         }
                                                     }
                                                     Command::RequestReplyError(_, _) => {
-                                                        // The tranformed result will be send the actor server itself.
+                                                        // The transformed result will be send the actor server itself.
                                                         if let Err(_) = sender_c.send(command).await {
                                                             error!("`{}` actor unable to send transformed request to itself", i_name);
                                                             panic!("Actor server stopped")

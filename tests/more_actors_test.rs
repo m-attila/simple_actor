@@ -287,7 +287,7 @@ fn calc_test() {
             info!("Sum is: {}", sums);
         }
 
-        // Request to get averagges
+        // Request to get averages
         if let Replies::Avg(avgs) = prod_actor_cl.request(producer::Requests::GetAvg).await.unwrap() {
             info!("Average is: {}", avgs);
         }
