@@ -26,7 +26,7 @@ impl<MR, R> RequestActor<MR, R>
         RequestActor {
             server: ActorServer::new(
                 name,
-                Box::new(ActorRequestServerHandler::new(req_handler)),
+                ActorRequestServerHandler::new(req_handler),
                 state_handler,
                 receive_buffer_size,
             )

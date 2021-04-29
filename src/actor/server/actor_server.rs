@@ -23,7 +23,7 @@ impl<ME, MR, R> ActorServer<ME, MR, R>
           R: 'static + Send + Debug {
     /// Create new actor server
     pub(crate) fn new(name: String,
-                      mut svr_handler: Box<dyn ActorServerHandler<Message=ME, Request=MR, Reply=R>>,
+                      svr_handler: impl ActorServerHandler<Message=ME, Request=MR, Reply=R> + 'static,
                       mut state_handler: Box<dyn StateHandler>, receive_buffer: usize) -> Self {
         let (sender,
             receiver) = mpsc::channel(receive_buffer);
@@ -33,7 +33,7 @@ impl<ME, MR, R> ActorServer<ME, MR, R>
 
         let handle = tokio::spawn(async move {
             let exit_val = match state_handler.init(i_name.clone()) {
-                Ok(_) => Self::looping(&mut svr_handler, receiver, internal_sender, i_name.clone()).await,
+                Ok(_) => Self::looping(svr_handler, receiver, internal_sender, i_name.clone()).await,
                 Err(e) => {
                     error!("`{}` actor initialization was failed: `{:?}`", i_name, e);
                     Err(e)
@@ -69,7 +69,7 @@ impl<ME, MR, R> ActorServer<ME, MR, R>
     }
 
     /// Message/request processing loop
-    async fn looping(svr_handler: &mut Box<dyn ActorServerHandler<Message=ME, Request=MR, Reply=R>>,
+    async fn looping(mut svr_handler: impl ActorServerHandler<Message=ME, Request=MR, Reply=R>,
                      mut receiver: mpsc::Receiver<Command<ME, MR, R>>,
                      sender: mpsc::Sender<Command<ME, MR, R>>,
                      name: String) -> Res<()> {
@@ -216,7 +216,7 @@ mod tests {
     }
 
     impl StateHandler for TestStateHandler {
-        fn init(&mut self, _name : String) -> Res<()> {
+        fn init(&mut self, _name: String) -> Res<()> {
             let mut ptr = self.init_called.lock().unwrap();
             *ptr = true;
             std::mem::replace(&mut self.init_return, Ok(()))
@@ -278,8 +278,7 @@ mod tests {
                 let test_svr_handler = TestServerHandler { process_error: Ok(()) };
                 // Create actor server
                 let actor_server = ActorServer::<String, (), ()>::new(
-                    "noname".to_string(),
-                    Box::new(test_svr_handler),
+                    "noname".to_string(), test_svr_handler,
                     Box::new(test_state_handler), 32);
 
                 // Get sender channel to the actor server
@@ -332,7 +331,7 @@ mod tests {
                 // Create actor server
                 let actor_server = ActorServer::<String, (), ()>::new(
                     "noname".to_string(),
-                    Box::new(test_svr_handler),
+                    test_svr_handler,
                     Box::new(test_state_handler), 32);
 
                 // Get sender channel to the actor server
@@ -387,7 +386,7 @@ mod tests {
                 // Create actor server
                 let actor_server = ActorServer::<String, (), ()>::new(
                     "noname".to_string(),
-                    Box::new(test_svr_handler),
+                    test_svr_handler,
                     Box::new(test_state_handler), 32);
 
                 // ensure initialization has finished in async thread
