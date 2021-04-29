@@ -32,7 +32,7 @@ impl<ME, MR, R> HybridActor<ME, MR, R>
         HybridActor {
             server: ActorServer::new(
                 name,
-                Box::new(ActorHybridServerHandler::new(handler)),
+                ActorHybridServerHandler::new(handler),
                 state_handler,
                 receive_buffer_size,
             )

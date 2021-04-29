@@ -25,7 +25,7 @@ impl<ME> MessageActor<ME>
         MessageActor {
             server: ActorServer::new(
                 name,
-                Box::new(ActorMessageServerHandler::new(msg_handler)),
+                ActorMessageServerHandler::new(msg_handler),
                 state_handler,
                 receive_buffer_size,
             )
