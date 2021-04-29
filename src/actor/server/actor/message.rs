@@ -6,7 +6,7 @@ use crate::actor::server::handler::message::ActorMessageServerHandler;
 use crate::common::{MessageHandler, Res, StateHandler};
 use std::fmt::Debug;
 
-/// Actor implementation which can handle asynchronous messagges
+/// Actor implementation which can handle asynchronous messages
 pub struct MessageActor<ME>
     where ME: Send {
     server: ActorServer<ME, (), ()>

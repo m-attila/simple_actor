@@ -11,7 +11,7 @@ pub struct ActorBuilder {
     state_handler: Option<Box<dyn StateHandler>>,
     /// receive buffer size that can be set by builder
     receive_buffer_size: usize,
-    /// Actor'name
+    /// Actor's name
     name: String,
 }
 

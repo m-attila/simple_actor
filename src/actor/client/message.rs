@@ -7,7 +7,7 @@ use std::fmt::Debug;
 
 /// Client which can send synchronous message to the actor
 #[async_trait]
-pub trait ActorMessageClient: Send {
+pub trait ActorMessageClient: Send + Sync{
     /// Type of message
     type Message: Send;
     /// Sends message to the actor
