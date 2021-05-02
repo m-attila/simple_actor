@@ -53,7 +53,7 @@ impl MessageScheduler {
         match self.0.stop().await {
             Ok(r) => {
                 info!("Message scheduler was stopped with result '{:?}' for actor `{}`", r, name);
-                Ok(r)
+                Ok(())
             }
             Err(e) => {
                 error!("Message scheduler was stopped with error `{:?}` for actor `{}`", e, name);

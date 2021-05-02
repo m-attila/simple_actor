@@ -80,7 +80,7 @@ impl<E: Send> SchedulerData<E> {
                 }
                 Err(e) => {
                     error!("Error occurred by handling scheduled event: `{:?}`", e);
-                    break Err(e.into());
+                    break Err(e);
                 }
             }
             if let Scheduling::OnceAt(_) = self.stype {

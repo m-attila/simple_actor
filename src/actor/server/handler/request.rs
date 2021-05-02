@@ -27,7 +27,6 @@ impl<MR, R> ActorServerHandler for ActorRequestServerHandler<MR, R>
         match command {
             Command::Request(request, reply_to) => {
                 if !self.handler.is_heavy(&request) {
-                    // It can accept only requests
                     let res = self.handler.process_request(request).await;
                     if let Err(e) = reply_to.send(res) {
                         ProcessResultBuilder::request_unable_to_send_reply(self.handler.as_ref(), e)
@@ -49,7 +48,7 @@ impl<MR, R> ActorServerHandler for ActorRequestServerHandler<MR, R>
     }
 }
 
-/// Handle async requests
+/// Handle async processing requests
 pub(crate) struct ActorAsyncRequestServerHandler;
 
 impl ActorAsyncRequestServerHandler {
@@ -59,14 +58,14 @@ impl ActorAsyncRequestServerHandler {
               MR: Send + 'static,
               R: Send + 'static {
         let handle = tokio::task::spawn_blocking(move || {
-            // execute heavy computing, and receive its result
+            // execute heavy computation, and receive its result
             let res: Res<MR> = transformation(request);
             match res {
-                // turn computing result into new request
+                // transform computing result into a new request
                 Ok(req) => ProcessResultBuilder::request_transformed_to_async_request(req, reply_to),
                 Err(err) => {
-                    // Send error result back to the client immediate
-                    if let Err(res) = reply_to.send(Err(err).into()) {
+                    // Send error result back to the client immediately
+                    if let Err(res) = reply_to.send(Err(err)) {
                         ProcessResultBuilder::request_transformed_async_send_error(res, SimpleActorError::Send.into())
                     } else {
                         ProcessResultBuilder::request_transformed_to_async_error_was_sent()

@@ -109,14 +109,14 @@ impl<ME, MR, R> ActorServer<ME, MR, R>
                                                 match command {
                                                     Command::Request(_, _) => {
                                                         // The transformed result will be send the actor server itself.
-                                                        if let Err(_) = sender_c.send(command).await {
+                                                        if sender_c.send(command).await.is_err() {
                                                             error!("`{}` actor unable to send transformed request to itself", i_name);
                                                             panic!("Actor server stopped")
                                                         }
                                                     }
                                                     Command::RequestReplyError(_, _) => {
                                                         // The transformed result will be send the actor server itself.
-                                                        if let Err(_) = sender_c.send(command).await {
+                                                        if sender_c.send(command).await.is_err() {
                                                             error!("`{}` actor unable to send transformed request to itself", i_name);
                                                             panic!("Actor server stopped")
                                                         }

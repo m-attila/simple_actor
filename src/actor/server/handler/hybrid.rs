@@ -37,7 +37,6 @@ impl<ME, MR, R> ActorServerHandler for ActorHybridServerHandler<ME, MR, R>
         match command {
             Command::Request(request, reply_to) => {
                 if !self.handler.is_heavy(&request) {
-                    // It can accept only requests
                     let res = self.handler.process_request(request).await;
                     if let Err(e) = reply_to.send(res) {
                         let ref_handler = self.as_request_handler_ref();

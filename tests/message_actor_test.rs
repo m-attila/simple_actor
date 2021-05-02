@@ -7,10 +7,10 @@ use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use tokio::time::Duration;
 
-use simple_actor::actor::client::scheduler::common::Scheduling;
-use simple_actor::actor::client::scheduler::message::MessageScheduler;
-use simple_actor::actor::server::actor::builder::ActorBuilder;
-use simple_actor::common::{MessageHandler, Res};
+use simple_actor::Scheduling;
+use simple_actor::MessageScheduler;
+use simple_actor::ActorBuilder;
+use simple_actor::{MessageHandler, Res};
 
 use crate::common::{Number, NumError};
 

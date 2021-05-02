@@ -1,7 +1,7 @@
 //! This example introduces how can be generate and handle periodically scheduled messages in actor.
 //! The `SamplerActor` receives measurement data and calculate average value of them within a given
 //! time window. This calculation is performed for a periodically generated `MarkPosition` message.
-//! The actor stores all average calculation, and give them back for the `GetAverages` requests.
+//! The actor stores all average calculations, and give them back for the `GetAverages` requests.
 extern crate rand;
 
 use std::time::Duration;

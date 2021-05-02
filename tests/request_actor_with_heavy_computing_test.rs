@@ -7,8 +7,8 @@ use log::{info, LevelFilter};
 use simple_logger::SimpleLogger;
 use tokio::time::Duration;
 
-use simple_actor::actor::server::actor::builder::ActorBuilder;
-use simple_actor::common::{RequestHandler, Res};
+use simple_actor::ActorBuilder;
+use simple_actor::{RequestHandler, Res};
 
 use crate::common::Number;
 

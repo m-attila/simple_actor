@@ -28,12 +28,9 @@ impl<ME, MR, R> ActorHybridClientImpl<ME, MR, R>
           R: 'static + Send + Debug {
     /// Creates new hybrid actor client
     pub(crate) fn new(name: String, sender: mpsc::Sender<Command<ME, MR, R>>) -> Self {
-        let mname = name.clone();
-        let rname = name.clone();
-
         ActorHybridClientImpl {
-            message_client: Box::new(ActorMessageClientImpl::<ME, MR, R>::new(mname, sender.clone())),
-            request_client: Box::new(ActorRequestClientImpl::<MR, R, ME>::new(rname, sender)),
+            message_client: Box::new(ActorMessageClientImpl::<ME, MR, R>::new(name.clone(), sender.clone())),
+            request_client: Box::new(ActorRequestClientImpl::<MR, R, ME>::new(name, sender)),
         }
     }
 }

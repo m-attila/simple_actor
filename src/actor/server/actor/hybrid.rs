@@ -9,7 +9,7 @@ use crate::actor::server::actor_server::ActorServer;
 use crate::actor::server::handler::hybrid::ActorHybridServerHandler;
 use crate::common::{HybridHandler, Res, StateHandler};
 
-/// Actor implementation that can handle messages and requests as well
+/// Actor implementation to handle messages and requests as well
 pub struct HybridActor<ME, MR, R>
     where ME: Send,
           MR: Send,

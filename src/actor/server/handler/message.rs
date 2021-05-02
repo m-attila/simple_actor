@@ -23,7 +23,6 @@ impl<ME: Send> ActorServerHandler for ActorMessageServerHandler<ME> {
 
     async fn process(&mut self, command: Command<Self::Message, (), ()>) -> ProcessResult<Self::Message, Self::Request, Self::Reply> {
         if let Command::Message(message) = command {
-            // It can accept only messages
             ProcessResultBuilder::message_processed(self.handler.process_message(message).await)
         } else {
             ProcessResultBuilder::message_processed_with_error(SimpleActorError::UnexpectedCommand.into())

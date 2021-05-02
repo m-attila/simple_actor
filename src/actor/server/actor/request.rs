@@ -5,7 +5,7 @@ use crate::actor::server::handler::request::ActorRequestServerHandler;
 use crate::common::{RequestHandler, Res, StateHandler};
 use std::fmt::Debug;
 
-/// Actor implementation which can handle asynchronous requests
+/// Actor implementation which can handle synchronous requests
 pub struct RequestActor<MR, R>
     where MR: Send,
           R: Send {
