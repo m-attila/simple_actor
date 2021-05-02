@@ -5,11 +5,11 @@ use crate::actor::server::actor::request::RequestActor;
 use crate::common::{HybridHandler, MessageHandler, RequestHandler, Res, StateHandler};
 use std::fmt::Debug;
 
-/// Actor builder
+/// Builder pattern to create and start new actors
 pub struct ActorBuilder {
     /// Optionals state handler that can be set by builder
     state_handler: Option<Box<dyn StateHandler>>,
-    /// receive buffer size that can be set by builder
+    /// receive buffer size can be set by builder
     receive_buffer_size: usize,
     /// Actor's name
     name: String,
@@ -29,25 +29,26 @@ impl ActorBuilder {
     pub fn new() -> Self {
         Default::default()
     }
-    /// Sets state handler custom implementation
+
+    /// Sets state handler's custom implementation
     pub fn state_handler(mut self, state_handler: Box<dyn StateHandler>) -> Self {
         self.state_handler = Some(state_handler);
         self
     }
 
-    /// Sets receive buffer size for messagebox
+    /// Sets receive buffer size
     pub fn receive_buffer_size(mut self, receive_buffer_size: usize) -> Self {
         self.receive_buffer_size = receive_buffer_size;
         self
     }
 
-    /// Sets the name of the thread
+    /// Sets the actor's name
     pub fn name(mut self, name: &str) -> Self {
         self.name = name.to_string();
         self
     }
 
-    /// Builds message handling actor with given message processor implementation
+    /// Builds message handling actor with given message processor handler
     pub fn build_message_actor<ME>(self, msg_handler: Box<dyn MessageHandler<Message=ME>>) -> MessageActor<ME>
         where ME: 'static + Send + Debug{
         MessageActor::new(self.name, msg_handler,
@@ -55,7 +56,7 @@ impl ActorBuilder {
                               .unwrap_or(Box::new(DefaultStateHandler {})), self.receive_buffer_size)
     }
 
-    /// Builds request handler actor with given request processor implementation
+    /// Builds request handler actor with given request processor handler
     pub fn build_request_actor<MR, R>(self, req_handler: Box<dyn RequestHandler<Request=MR, Reply=R>>) -> RequestActor<MR, R>
         where MR: 'static + Send + Debug,
               R: 'static + Send + Debug{
@@ -64,7 +65,7 @@ impl ActorBuilder {
                               .unwrap_or(Box::new(DefaultStateHandler {})), self.receive_buffer_size)
     }
 
-    /// Builds message and request handler actor with given implementation
+    /// Builds message and request handler actor with given handler
     pub fn build_hybrid_actor<ME, MR, R>(self,
                                          handler: Box<dyn HybridHandler<Message=ME, Request=MR, Reply=R>>) -> HybridActor<ME, MR, R>
         where ME: 'static + Send + Debug,
@@ -76,7 +77,7 @@ impl ActorBuilder {
     }
 }
 
-/// Default state handler which used by actor when custom handler has not given
+/// Default state handler which used by actor, when custom handler is not set
 struct DefaultStateHandler {}
 
 impl StateHandler for DefaultStateHandler {

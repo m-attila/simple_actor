@@ -6,7 +6,7 @@ use log::info;
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 
-use simple_actor::actor::server::actor::builder::ActorBuilder;
+use simple_actor::ActorBuilder;
 
 use crate::consumer::AvgCalculatorFunction;
 use crate::consumer::Calculator;
@@ -20,8 +20,8 @@ mod common;
 mod producer {
     use async_trait::async_trait;
 
-    use simple_actor::actor::client::hybrid::ActorHybridClient;
-    use simple_actor::common::{RequestHandler, Res};
+    use simple_actor::ActorHybridClient;
+    use simple_actor::{RequestHandler, Res};
 
     use super::consumer;
 
@@ -123,7 +123,7 @@ pub mod consumer {
 
     use async_trait::async_trait;
 
-    use simple_actor::common::{HybridHandler, MessageHandler, RequestHandler, Res};
+    use simple_actor::{HybridHandler, MessageHandler, RequestHandler, Res};
 
     /// Consumer messages
     #[derive(Debug)]

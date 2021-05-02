@@ -6,8 +6,8 @@ use async_trait::async_trait;
 use log::{info, LevelFilter};
 use simple_logger::SimpleLogger;
 
-use simple_actor::actor::server::actor::builder::ActorBuilder;
-use simple_actor::common::{ActorError, RequestHandler, Res};
+use simple_actor::ActorBuilder;
+use simple_actor::{ActorError, RequestHandler, Res};
 
 use crate::common::Number;
 

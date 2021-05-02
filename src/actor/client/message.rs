@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 use crate::common::{Command, Res, SimpleActorError};
 use std::fmt::Debug;
 
-/// Client which can send synchronous message to the actor
+/// Client which can send synchronous message to the actor.
 #[async_trait]
 pub trait ActorMessageClient: Send + Sync{
     /// Type of message

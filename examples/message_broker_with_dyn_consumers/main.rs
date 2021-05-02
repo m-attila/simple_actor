@@ -2,12 +2,12 @@
 //! messages and synchronous requests. In this example the MessageBroker actor
 //! receives subscribe and unsubscribe requests for Info/Warning/Error topics, and receives system
 //! event messages which can be infos, warnings or errors. This messages contains a JSON description
-//! which describes the events' features. Consumer clients could subscribe for any topic, where to
+//! which contains the events' features. Consumer clients could subscribe for any topic, where to
 //! the message broker deals out the messages. In subscribes, client gives their unique ID and interface
-//! by trait object to the message broker. In this example there are two consumer. First one, is
+//! of an trait object to the message broker. In this example there are two consumer. First one, is
 //! the `DevOpsEventConsumer` which subscribes for warning and error topics, and give an alert
 //! when such event has received. The other one, is the `LogConsumer` which consumes the messages
-//! from all of topics, simulates a log writer mechanism on the console.
+//! from all of topics, simulates a log writer mechanism to the console.
 
 extern crate ansi_term;
 extern crate rand;

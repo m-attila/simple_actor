@@ -4,7 +4,7 @@
 //! messages and synchronous requests. This actor receives subscribe/unsubscribe requests
 //! for Info/Warning/Error topics, and receives the system
 //! event messages which can be infos, warnings or errors. This messages contains a JSON description
-//! which describes the events' features. Consumer actors can subscribe for any topic, where to
+//! which contains the events' features. Consumer actors can subscribe for any topic, where to
 //! the message broker deals out messages. In subscribes, client gives their unique ID and its
 //! actor's client interfaces. In this example there are two consumer. First one, is
 //! the `DevOpsEventConsumerActor` which subscribes for warning and error topics, and give an alert
