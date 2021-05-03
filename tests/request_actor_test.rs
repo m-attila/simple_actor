@@ -63,7 +63,12 @@ fn request_actor() {
     rt.block_on(async {
         let instance = TestActor { counter: 0 };
 
-        let actor = ActorBuilder::new().name("TestActor").build_request_actor(Box::new(instance));
+        let actor = ActorBuilder::new()
+            .name("TestActor")
+            .one_shot()
+            .request_actor(Box::new(instance))
+            .build();
+
         let client = actor.client();
 
         let mut sum: u128 = 0;

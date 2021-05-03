@@ -261,12 +261,20 @@ fn calc_test() {
         // Sum calculator logic
         let sum_calc = Box::new(Calculator::new(Box::new(SumCalculatorFunction {})));
         // Wraps into 'consumer' actor
-        let sum_calc_actor = ActorBuilder::new().name("SumCalculator").build_hybrid_actor(sum_calc);
+        let sum_calc_actor = ActorBuilder::new()
+            .name("SumCalculator")
+            .one_shot()
+            .hybrid_actor(sum_calc)
+            .build();
 
         // Average calculator logic
         let avg_calc = Box::new(Calculator::new(Box::new(AvgCalculatorFunction {})));
         // Wraps into 'consumer' actor
-        let avg_calc_actor = ActorBuilder::new().name("AvgCalculator").build_hybrid_actor(avg_calc);
+        let avg_calc_actor = ActorBuilder::new()
+            .name("AvgCalculator")
+            .one_shot()
+            .hybrid_actor(avg_calc)
+            .build();
 
         // Producer logic
         let mut producer = Producer::new();
@@ -275,7 +283,12 @@ fn calc_test() {
         producer.set_avg_client(avg_calc_actor.client());
 
         // Producer actor
-        let prod_actor = ActorBuilder::new().name("Producer").build_request_actor(Box::new(producer));
+        let prod_actor = ActorBuilder::new()
+            .name("Producer")
+            .one_shot()
+            .request_actor(Box::new(producer))
+            .build();
+
         // Gets producer's client
         let prod_actor_cl = prod_actor.client();
 

@@ -125,7 +125,12 @@ fn request_actor() {
     rt.block_on(async {
         let instance = TestActor::new();
 
-        let actor = ActorBuilder::new().name("TestActor").build_request_actor(Box::new(instance));
+        let actor = ActorBuilder::new()
+            .name("TestActor")
+            .one_shot()
+            .request_actor(Box::new(instance))
+            .build();
+
         let client = actor.client();
         let client_heavy = actor.client();
         let client_heavy2 = actor.client();
