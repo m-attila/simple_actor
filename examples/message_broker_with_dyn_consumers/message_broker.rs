@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use simple_actor::actor::server::actor::builder::ActorBuilder;
+use simple_actor::ActorBuilder;
 use simple_actor::actor::server::actor::hybrid::HybridActor;
 use simple_actor::common::{HybridHandler, MessageHandler, RequestHandler, Res};
 
@@ -94,7 +94,9 @@ impl MessageBrokerActor {
         ActorBuilder::new()
             .name("message_broker")
             .receive_buffer_size(self.buffer_size)
-            .build_hybrid_actor(Box::new(self))
+            .one_shot()
+            .hybrid_actor(Box::new(self))
+            .build()
     }
 }
 

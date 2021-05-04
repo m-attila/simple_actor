@@ -29,7 +29,7 @@ use chrono::Utc;
 use serde_json::json;
 use uuid::Uuid;
 
-use simple_actor::actor::server::actor::builder::ActorBuilder;
+use simple_actor::ActorBuilder;
 use simple_actor::common::{MessageHandler, Res};
 
 use crate::common::{BrokerMessages, BrokerRequests, BrokerResponses, ConsumerMessages, JsonMessage};
@@ -135,7 +135,12 @@ pub async fn main() {
     let devops_logic = DevOpsEventConsumerActor::default();
     // Get unique ID for subscription
     let devops_id = devops_logic.uuid();
-    let devops = ActorBuilder::new().receive_buffer_size(128).name("devops").build_message_actor(Box::new(devops_logic));
+    let devops = ActorBuilder::new()
+        .receive_buffer_size(128)
+        .name("devops")
+        .one_shot()
+        .message_actor(Box::new(devops_logic))
+        .build();
 
     // Subscribe for Error topic
     assert_eq!(BrokerResponses::Subscribed,
@@ -152,7 +157,12 @@ pub async fn main() {
     let logger_logic = LoggerConsumerActor::default();
     // Get unique ID for subscription
     let logger_id = logger_logic.uuid();
-    let logger = ActorBuilder::new().receive_buffer_size(128).name("logger").build_message_actor(Box::new(logger_logic));
+    let logger = ActorBuilder::new()
+        .receive_buffer_size(128)
+        .name("logger")
+        .one_shot()
+        .message_actor(Box::new(logger_logic))
+        .build();
 
     // Subscribe for all topics
     assert_eq!(BrokerResponses::Subscribed,

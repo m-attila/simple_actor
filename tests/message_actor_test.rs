@@ -7,10 +7,10 @@ use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use tokio::time::Duration;
 
-use simple_actor::Scheduling;
-use simple_actor::MessageScheduler;
-use simple_actor::ActorBuilder;
 use simple_actor::{MessageHandler, Res};
+use simple_actor::ActorBuilder;
+use simple_actor::MessageScheduler;
+use simple_actor::Scheduling;
 
 use crate::common::{Number, NumError};
 
@@ -49,7 +49,11 @@ fn message_actor_test() {
         let instance = TestActor { counter: 0 };
 
         // wraps logic into message actor
-        let actor = ActorBuilder::new().name("TestActor").build_message_actor(Box::new(instance));
+        let actor = ActorBuilder::new()
+            .name("TestActor")
+            .one_shot()
+            .message_actor(Box::new(instance))
+            .build();
 
         // gets client for actor
         let client = actor.client();
@@ -84,6 +88,92 @@ fn message_actor_test() {
 
 #[test]
 #[allow(unused_must_use)]
+fn restartable_message_actor_test() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        // wraps logic into message actor
+        let builder = ActorBuilder::new()
+            .name("TestActor")
+            .reusable()
+            .message_actor(|| Box::new(TestActor { counter: 0 }));
+        let actor = builder.build();
+
+        // gets client for actor
+        let client = actor.client();
+
+        // expected sum
+        let mut sum: u128 = 0;
+
+        // sends messages
+        for _ in 1..=100_000u128 {
+            sum += 1;
+            client.message(1).await.unwrap();
+        }
+
+        // If message processing causes error, actor stops.
+        // The error is available by return value of stop method.
+        // Send invalid value: 0
+        // The message sending was succeeded, so it returns with Ok()
+        client.message(0).await.unwrap();
+
+        // Gets exit value
+        let exit = actor.stop().await;
+
+        let err = exit.unwrap_err();
+
+        // Unwrap custom error
+        match err.downcast_ref::<NumError>() {
+            Some(num) => assert_eq!(sum, num.value),
+            None => panic!("isn't a NumError type!"),
+        }
+
+        // Send message after actor was stopped
+        client.message(1).await.unwrap_err();
+
+        ////////////////////////////////////////////////////////////////////////
+        // build new actor with the builder, and perform previous tests again
+
+        // Create new actor
+        let actor = builder.build();
+
+        // gets client for actor
+        let client = actor.client();
+
+        // expected sum
+        let mut sum: u128 = 0;
+
+        // sends messages
+        for _ in 1..=100_000u128 {
+            sum += 1;
+            client.message(1).await.unwrap();
+        }
+
+        // If message processing causes error, actor stops.
+        // The error is available by return value of stop method.
+        // Send invalid value: 0
+        // The message sending was succeeded, so it returns with Ok()
+        client.message(0).await.unwrap();
+
+        // Gets exit value
+        let exit = actor.stop().await;
+
+        let err = exit.unwrap_err();
+
+        // Unwrap custom error
+        match err.downcast_ref::<NumError>() {
+            Some(num) => assert_eq!(sum, num.value),
+            None => panic!("isn't a NumError type!"),
+        }
+
+    })
+}
+
+#[test]
+#[allow(unused_must_use)]
 fn scheduled_message_actor_test() {
     SimpleLogger::new().init();
     log::set_max_level(LevelFilter::Debug);
@@ -95,7 +185,11 @@ fn scheduled_message_actor_test() {
         let instance = TestActor { counter: 0 };
 
         // wraps logic into message actor
-        let actor = ActorBuilder::new().name("TestActor").build_message_actor(Box::new(instance));
+        let actor = ActorBuilder::new()
+            .name("TestActor")
+            .one_shot()
+            .message_actor(Box::new(instance))
+            .build();
 
         // gets client for actor
         let client = actor.client();

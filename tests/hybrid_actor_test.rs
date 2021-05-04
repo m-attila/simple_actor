@@ -83,7 +83,11 @@ fn hybrid_actor() {
         let instance = HybridActor { counter: 0 };
 
         // Actor which wraps custom logic
-        let actor = ActorBuilder::new().name("HybridActor").build_hybrid_actor(Box::new(instance));
+        let actor = ActorBuilder::new()
+            .name("HybridActor")
+            .one_shot()
+            .hybrid_actor(Box::new(instance))
+            .build();
 
         // Client for actor
         let client = actor.client();
@@ -122,7 +126,11 @@ fn scheduled_hybrid_actor_test() {
         let instance = HybridActor { counter: 0 };
 
         // Actor which wraps custom logic
-        let actor = ActorBuilder::new().name("HybridActor").build_hybrid_actor(Box::new(instance));
+        let actor = ActorBuilder::new()
+            .name("HybridActor")
+            .one_shot()
+            .hybrid_actor(Box::new(instance))
+            .build();
 
         // Client for actor
         let client = actor.client();

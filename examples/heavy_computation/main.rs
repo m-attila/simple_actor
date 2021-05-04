@@ -6,9 +6,9 @@ use std::time::Duration;
 use async_trait::async_trait;
 use chrono::Utc;
 
-use simple_actor::actor::server::actor::builder::ActorBuilder;
 use simple_actor::actor::server::actor::request::RequestActor;
 use simple_actor::common::{RequestHandler, Res};
+use simple_actor::ActorBuilder;
 
 /// Computation requests
 #[derive(Debug)]
@@ -54,7 +54,9 @@ impl ComputationActor {
         ActorBuilder::new()
             .name("computation")
             .receive_buffer_size(self.buffer_size)
-            .build_request_actor(Box::new(self))
+            .one_shot()
+            .request_actor(Box::new(self))
+            .build()
     }
 
     /// Perform heavy computations

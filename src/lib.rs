@@ -80,8 +80,12 @@
 //!         .name("test_actor")
 //!         // maximal size of the the messages' receiving buffer
 //!         .receive_buffer_size(128)
+//!         // builder could be use only once
+//!         .one_shot()
+//!         // set actor type and handler
+//!         .message_actor(Box::new(TestActor::default()))
 //!         // build the actor
-//!         .build_message_actor(Box::new(TestActor::default()));
+//!         .build();
 //!
 //!     // Create client for actor
 //!     let actor_client = actor.client();
@@ -166,8 +170,12 @@
 //!         .name("test_actor")
 //!         // the maximal size of the request receiving buffer
 //!         .receive_buffer_size(128)
+//!         // builder could be use only once
+//!         .one_shot()
+//!         // set actor type and handler
+//!         .request_actor(Box::new(TestActor::default()))
 //!         // build the actor
-//!         .build_request_actor(Box::new(TestActor::default()));
+//!         .build();
 //!
 //!     // Create client for actor
 //!     let actor_client = actor.client();
@@ -266,8 +274,12 @@
 //!         .name("test_actor")
 //!         // the maximal size of receiving buffer
 //!         .receive_buffer_size(128)
+//!         // builder could be use only once
+//!         .one_shot()
+//!         // set actor type and handler
+//!         .hybrid_actor(Box::new(TestActor::default()))
 //!         // build the actor
-//!         .build_hybrid_actor(Box::new(TestActor::default()));
+//!         .build();
 //!
 //!     // Create client for actor
 //!     let actor_client = actor.client();
@@ -341,8 +353,12 @@
 //!         .name("test_actor")
 //!         // the message receiving buffer maximal size
 //!         .receive_buffer_size(128)
+//!         // builder could be use only once
+//!         .one_shot()
+//!         // set actor type and handler
+//!         .message_actor(Box::new(TestActor::default()))
 //!         // build the actor
-//!         .build_message_actor(Box::new(TestActor::default()));
+//!         .build();
 //!
 //!     // Create client for actor
 //!     let actor_client_1 = actor.client();
@@ -375,7 +391,7 @@ pub mod common;
 pub mod actor;
 
 pub use crate::common::{MessageHandler, RequestHandler, HybridHandler, Res, ActorError};
-pub use crate::actor::server::actor::builder::ActorBuilder;
+pub use crate::actor::server::actor::builder::common::ActorBuilder;
 pub use crate::actor::client::scheduler::common::Scheduling;
 pub use crate::actor::client::scheduler::message::MessageScheduler;
 pub use crate::actor::client::message::ActorMessageClient;

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use tokio::sync::oneshot;
 
-use crate::actor::server::common::{ActorServerHandler, ProcessResult, ProcessResultBuilder};
+use crate::actor::server::common::{ActorServerHandler, ProcessResult, ProcessResultBuilder, AsyncProcessResultBuilder};
 use crate::common::{Command, RequestHandler, Res, SimpleActorError};
 
 /// Request handler implementation for request actors
@@ -29,9 +29,9 @@ impl<MR, R> ActorServerHandler for ActorRequestServerHandler<MR, R>
                 if !self.handler.is_heavy(&request) {
                     let res = self.handler.process_request(request).await;
                     if let Err(e) = reply_to.send(res) {
-                        ProcessResultBuilder::request_unable_to_send_reply(self.handler.as_ref(), e)
+                        ProcessResultBuilder::request_unable_to_send_reply(self.handler.as_ref(), e).result()
                     } else {
-                        ProcessResultBuilder::request_processed()
+                        ProcessResultBuilder::request_processed().result()
                     }
                 } else {
                     let transformation = self.handler.get_heavy_transformation();
@@ -40,10 +40,10 @@ impl<MR, R> ActorServerHandler for ActorRequestServerHandler<MR, R>
             }
             Command::RequestReplyError(res, _error) => {
                 self.handler.reply_error(res);
-                ProcessResultBuilder::request_processed()
+                ProcessResultBuilder::request_processed().result()
             }
             _ =>
-                ProcessResultBuilder::request_bad()
+                ProcessResultBuilder::request_bad().result()
         }
     }
 }
@@ -53,6 +53,7 @@ pub(crate) struct ActorAsyncRequestServerHandler;
 
 impl ActorAsyncRequestServerHandler {
     /// Process async requests
+    #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn process<ME, MR, R>(request: MR, reply_to: oneshot::Sender<Res<R>>, transformation: Box<dyn Fn(MR) -> Res<MR> + Send>) -> ProcessResult<ME, MR, R>
         where ME: Send + 'static,
               MR: Send + 'static,
@@ -62,13 +63,13 @@ impl ActorAsyncRequestServerHandler {
             let res: Res<MR> = transformation(request);
             match res {
                 // transform computing result into a new request
-                Ok(req) => ProcessResultBuilder::request_transformed_to_async_request(req, reply_to),
+                Ok(req) => AsyncProcessResultBuilder::request_transformed_to_async_request(req, reply_to).result(),
                 Err(err) => {
                     // Send error result back to the client immediately
                     if let Err(res) = reply_to.send(Err(err)) {
-                        ProcessResultBuilder::request_transformed_async_send_error(res, SimpleActorError::Send.into())
+                        AsyncProcessResultBuilder::request_transformed_async_send_error(res, SimpleActorError::Send.into()).result()
                     } else {
-                        ProcessResultBuilder::request_transformed_to_async_error_was_sent()
+                        AsyncProcessResultBuilder::request_transformed_to_async_error_was_sent().result()
                     }
                 }
             }

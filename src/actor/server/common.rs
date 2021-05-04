@@ -8,57 +8,69 @@ use crate::common::{ActorError, Command, RequestHandler, Res, SimpleActorError};
 pub(crate) type ProcessResult<ME, MR, R> = Res<Option<JoinHandle<Option<Command<ME, MR, R>>>>>;
 
 /// Helps to build [`ProcessResult`] value
-pub(crate) struct ProcessResultBuilder;
+pub(crate) struct ProcessResultBuilder<ME, MR, R>(ProcessResult<ME, MR, R>)
+    where ME: Send, MR: Send, R: Send;
 
-impl ProcessResultBuilder {
+impl<ME: Send, MR: Send, R: Send> ProcessResultBuilder<ME, MR, R> {
     /// Builds [`ProcessResult`] when the message was processed successfully
-    pub(crate) fn message_processed<ME, MR, R>(result: Res<()>) -> ProcessResult<ME, MR, R>
-        where ME: Send, MR: Send, R: Send {
-        result.map(|_| None)
+    pub(crate) fn message_processed(result: Res<()>) -> Self {
+        Self(result.map(|_| None))
     }
 
     /// Builds [`ProcessResult`] when the message was processed by error
-    pub(crate) fn message_processed_with_error<ME, MR, R>(error: ActorError) -> ProcessResult<ME, MR, R>
-        where ME: Send, MR: Send, R: Send {
-        Err(error)
+    pub(crate) fn message_processed_with_error(error: ActorError) -> Self {
+        Self(Err(error))
     }
 
     /// Builds [`ProcessResult`] when synchronous request was processed successfully
-    pub(crate) fn request_processed<ME, MR, R>() -> ProcessResult<ME, MR, R>
-        where ME: Send, MR: Send, R: Send {
-        Ok(None)
+    pub(crate) fn request_processed() -> Self {
+        Self(Ok(None))
     }
 
     /// Builds [`ProcessResult`] when synchronous request's reply was unable to send to client
-    pub(crate) fn request_unable_to_send_reply<ME, MR, R>(handler: &dyn RequestHandler<Request=MR, Reply=R>,
-                                                          reply: Res<R>) -> ProcessResult<ME, MR, R>
-        where ME: Send, MR: Send, R: Send {
+    pub(crate) fn request_unable_to_send_reply(handler: &dyn RequestHandler<Request=MR, Reply=R>,
+                                               reply: Res<R>) -> Self {
         handler.reply_error(reply);
-        Ok(None)
+        Self(Ok(None))
     }
 
     /// Build [`ProcessResult`] when request is not valid on the context
-    pub(crate) fn request_bad<ME, MR, R>() -> ProcessResult<ME, MR, R>
-        where ME: Send, MR: Send, R: Send {
-        Err(SimpleActorError::UnexpectedCommand.into())
+    pub(crate) fn request_bad() -> Self {
+        Self(Err(SimpleActorError::UnexpectedCommand.into()))
     }
 
+    /// Returns process result
+    pub(crate) fn result(self) -> ProcessResult<ME, MR, R> {
+        self.0
+    }
+}
+
+/// Result type of the [`ActorAsyncRequestServerHandler::process`] function
+pub(crate) type AsyncProcessResult<ME, MR, R> = Option<Command<ME, MR, R>>;
+
+/// Helps to build [`ProcessResult`] value
+pub(crate) struct AsyncProcessResultBuilder<ME, MR, R>(AsyncProcessResult<ME, MR, R>)
+    where ME: Send, MR: Send, R: Send;
+
+impl<ME: Send, MR: Send, R: Send> AsyncProcessResultBuilder<ME, MR, R> {
     /// Builds [`ProcessResult`] when asynchronous request was executed and its result was transformed to other one
-    pub(crate) fn request_transformed_to_async_request<ME, MR, R>(new_request: MR, reply_to: oneshot::Sender<Res<R>>) -> Option<Command<ME, MR, R>>
-        where ME: Send, MR: Send, R: Send {
-        Some(Command::<ME, MR, R>::Request(new_request, reply_to))
+    pub(crate) fn request_transformed_to_async_request(new_request: MR, reply_to: oneshot::Sender<Res<R>>) -> AsyncProcessResultBuilder<ME, MR, R>{
+        Self(Some(Command::<ME, MR, R>::Request(new_request, reply_to)))
     }
 
     /// Builds [`ProcessResult`] when asynchronous request transforming was failed and an error was sent to the requester
-    pub(crate) fn request_transformed_to_async_error_was_sent<ME, MR, R>() -> Option<Command<ME, MR, R>>
-        where ME: Send, MR: Send, R: Send {
-        None
+    pub(crate) fn request_transformed_to_async_error_was_sent() -> AsyncProcessResultBuilder<ME, MR, R>{
+        Self(None)
     }
 
     /// Builds [`ProcessResult`] when asynchronous request's reply was unable to send to the actor
-    pub(crate) fn request_transformed_async_send_error<ME, MR, R>(reply: Res<R>, error: ActorError) -> Option<Command<ME, MR, R>>
-        where ME: Send, MR: Send, R: Send {
-        Some(Command::<ME, MR, R>::RequestReplyError(reply, error))
+    pub(crate) fn request_transformed_async_send_error(reply: Res<R>, error: ActorError) -> AsyncProcessResultBuilder<ME, MR, R>{
+        Self(Some(Command::<ME, MR, R>::RequestReplyError(reply, error)))
+    }
+
+    /// Returns process result
+    pub(crate) fn result(self) -> AsyncProcessResult<ME, MR, R> {
+        self.0
     }
 }
 

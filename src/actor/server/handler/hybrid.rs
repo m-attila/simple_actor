@@ -40,9 +40,9 @@ impl<ME, MR, R> ActorServerHandler for ActorHybridServerHandler<ME, MR, R>
                     let res = self.handler.process_request(request).await;
                     if let Err(e) = reply_to.send(res) {
                         let ref_handler = self.as_request_handler_ref();
-                        ProcessResultBuilder::request_unable_to_send_reply(ref_handler, e)
+                        ProcessResultBuilder::request_unable_to_send_reply(ref_handler, e).result()
                     } else {
-                        ProcessResultBuilder::request_processed()
+                        ProcessResultBuilder::request_processed().result()
                     }
                 } else {
                     let transformation = self.handler.get_heavy_transformation();
@@ -50,12 +50,12 @@ impl<ME, MR, R> ActorServerHandler for ActorHybridServerHandler<ME, MR, R>
                 }
             }
             Command::Message(message) =>
-                ProcessResultBuilder::message_processed(self.handler.process_message(message).await),
+                ProcessResultBuilder::message_processed(self.handler.process_message(message).await).result(),
             Command::RequestReplyError(res, _error) => {
                 self.handler.reply_error(res);
-                ProcessResultBuilder::request_processed()
+                ProcessResultBuilder::request_processed().result()
             }
-            _ => ProcessResultBuilder::message_processed_with_error(SimpleActorError::UnexpectedCommand.into())
+            _ => ProcessResultBuilder::message_processed_with_error(SimpleActorError::UnexpectedCommand.into()).result()
         }
     }
 }
