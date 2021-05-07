@@ -397,3 +397,4 @@ pub use crate::actor::client::scheduler::message::MessageScheduler;
 pub use crate::actor::client::message::ActorMessageClient;
 pub use crate::actor::client::request::ActorRequestClient;
 pub use crate::actor::client::hybrid::ActorHybridClient;
+pub use crate::actor::client::sync::message::MessageActorNotify;
