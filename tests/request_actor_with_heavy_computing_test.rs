@@ -7,8 +7,9 @@ use log::{info, LevelFilter};
 use simple_logger::SimpleLogger;
 use tokio::time::Duration;
 
-use simple_actor::ActorBuilder;
 use simple_actor::{RequestHandler, Res};
+use simple_actor::ActorBuilder;
+use simple_actor::common::RequestExecution;
 
 use crate::common::Number;
 
@@ -76,17 +77,18 @@ impl RequestHandler for TestActor {
     type Request = Request;
     type Reply = Response;
 
-    fn is_heavy(&self, request: &Self::Request) -> bool {
+    async fn classify_request(&mut self, request: Self::Request) -> RequestExecution<Self::Request> {
         match request {
             // Is the request required heavy computing?
-            Request::HeavyComputing => true,
-            Request::HeavyComputingShorter => true,
-            Request::HeavyComputingWithError => true,
-            _ => false
+            a @ Request::HeavyComputing => RequestExecution::Blocking(a),
+            a @ Request::HeavyComputingShorter => RequestExecution::Blocking(a),
+            a @ Request::HeavyComputingWithError => RequestExecution::Blocking(a),
+            s @ _ => RequestExecution::Sync(s)
         }
     }
+
     /// Returns handle function which generates reply from request in heavy computing process
-    fn get_heavy_transformation(&self) -> Box<dyn Fn(Self::Request) -> Res<Self::Request> + Send> {
+    fn get_blocking_transformation(&self) -> Box<dyn Fn(Self::Request) -> Res<Self::Request> + Send> {
         Box::new(TestActor::heavy_computing)
     }
 

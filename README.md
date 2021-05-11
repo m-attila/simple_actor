@@ -9,7 +9,7 @@ The commands can be *messages* and *requests*. Message is processed by asynchron
 caller's running.
 The request is processed by synchronously, the caller waits for its result. If the internal processing of the request
 is synchronous, actor could not receive the next command until the previous has finished. The internal request
-processing could be asynchronous too, when it starts a new thread with `tokio::task::spawn_blocking` method
+processing could be asynchronous too, when it starts a new tash with `tokio::task::spawn_blocking` or `tokio::spawn` methods,
 so the actor could go for the next command during its execution. When the thread execution has finished,
 its result will be send by an other request to the actor again. This new request can be synchronous
 which could change the actor state, and this, as a reply could go back to the client, as the original request's result.
@@ -28,7 +28,7 @@ The builder has several method to build different types of actors.
 
 ### MessageActor
 
-* [`ActorBuilder::build_message_actor`](fn@crate::ActorBuilder::build_message_actor) creates such actor
+* [`ActorBuilder`](struct@crate::ActorBuilder) creates such actor
 which can receive only messages
 
 #### Example
@@ -105,7 +105,7 @@ pub async fn main() {
 
 ### RequestActor
 
-* [`ActorBuilder::build_request_actor`](fn@crate::ActorBuilder::build_request_actor) creates such actor
+* [`ActorBuilder`](struct@crate::ActorBuilder) creates such actor
 which can receive only requests
 
 #### Example
@@ -189,7 +189,7 @@ pub async fn main() {
 
 ### HybridActor
 
-* [`ActorBuilder::build_hybrid_actor`](fn@crate::ActorBuilder::build_hybrid_actor) creates such actor
+* [`ActorBuilder`](struct@crate::ActorBuilder) creates such actor
 which can receive both messages and requests
 
 #### Example
@@ -347,7 +347,24 @@ let actor = ActorBuilder::new()
 
 #### Other examples
 
-See in `examples` directory.
+* `heavy_computation`
+Introduces how can be execute asynchronous request, and how can they modify the actor's state
+depend of their execution results.
+* `message_broker_with_actor_consumers`
+Introduces a public-subscribe messaging example for several topics, where the topic handler and the
+subscribers are actors.
+* `message_broker_with_dyn_consumers`
+Introduces a public-subscriber messaging example for several topics, such as the previous example,
+but only the topic handler is an actor, the clients are simple dynamic trait implementations.
+* `resource_pool`
+This example introduces a resource pool handler, when the clients send their callbacks to the actor,
+which generates an asycnhronous operation which uses the allocated resource. The resource pool maintains
+a set of resources which can be permanent and temporary. The pool keeps some permanent resources and
+when the load in increasing, create temporaries for a given threashold. After the load goes down,
+temporaries will be dropped.
+* `sampler`
+This example shows, how can be attach schedulers to the actors. The schedulers transform periodically
+events into messages which can be handled in the actors.
 
 ## Logging
 

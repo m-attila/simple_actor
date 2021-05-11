@@ -1,10 +1,12 @@
 //! Common types and structs in simple_actor.
-use log::{error};
+use std::any::Any;
 use std::convert::TryFrom;
+use std::future::Future;
+use std::pin::Pin;
 
 use async_trait::async_trait;
+use log::error;
 use tokio::sync::oneshot;
-use std::any::Any;
 
 /// Generic error type
 pub type ActorError = Box<dyn std::error::Error + Send + Sync>;
@@ -52,13 +54,13 @@ unsafe impl Sync for SimpleActorError {}
 /// Actor commands
 #[derive(Debug)]
 pub(crate) enum Command<ME: Send, MR: Send, R: Send> {
-    /// Asynchronous message without response
+    /// Asynchronous message without waiting for any response
     Message(ME),
     /// Synchronous request with response
     Request(MR, oneshot::Sender<Res<R>>),
     /// Stop the actor
     Stop,
-    /// Unable to send reply for processed heavy computing request
+    /// Unable to send reply for processed asynchronous request
     RequestReplyError(Res<R>, ActorError),
 }
 
@@ -76,6 +78,19 @@ pub trait MessageHandler: Send {
     async fn process_message(&mut self, _message: Self::Message) -> Res<()>;
 }
 
+/// Classified request. Indicates how can be process the received request.
+pub enum RequestExecution<R> {
+    /// The request will be processed synchronously. Until the processing finshed,
+    /// the actor does not step to the next message or request
+    Sync(R),
+    /// The request will be processed asynchronously. During its processing, the actor
+    /// start to deal with the next message or request.
+    Async(R),
+    /// Such as the [`Async`](enum@RequestExecution::Async) execution, but it is a blocking processing, the actor start to deal
+    /// with it in a new thread. See [`spawn_blocking`](fn@tokio::task::spawn_blocking) method.
+    Blocking(R),
+}
+
 /// This trait should be implemented to process actor's synchronous requests.
 #[async_trait]
 pub trait RequestHandler: Send {
@@ -84,30 +99,36 @@ pub trait RequestHandler: Send {
     /// Type of reply
     type Reply: Send;
 
+    /// Classify the request by execution mode
+    async fn classify_request(&mut self, request: Self::Request) -> RequestExecution<Self::Request> {
+        RequestExecution::Sync(request)
+    }
+
     /// Request processor.
     /// Process `request` argument and returns with processing reply. The reply could be
     /// `Ok(:Reply)` or `Err(:ActorError)` which will be returned into the actor's client.
     async fn process_request(&mut self, _request: Self::Request) -> Res<Self::Reply>;
 
-    /// Returns if the request requires heavy computation. This type of processing runs in
-    /// separate thread, using by `tokio::task::spawn_blocking` method. During this running,
-    /// the actor can receive and process the next message or request.
-    fn is_heavy(&self, _request: &Self::Request) -> bool {
-        false
+    /// Returns a function which executes the blocking operation. This computation will not
+    /// block any other receiving and processing mechanism. When the computation has finished successfully,
+    /// this function returns a new request which wraps in the computation's result. The actor process this new
+    /// request serially as any other ones. With this serialization method, the computation's result
+    /// could be affect for the actor's state.
+    fn get_blocking_transformation(&self) -> Box<dyn Fn(Self::Request) -> Res<Self::Request> + Send> {
+        error!("Please implement get_blocking_transformation(...) method in RequestHandler implementation");
+        unimplemented!()
     }
 
-    /// Returns a function which executes the heavy computation. This computation will not
-    /// block any other receiving and processing mechanism. When the computation has finished successfully,
-    /// this function returns a new request which wraps in the computation's result. The actor process this
-    /// request serially as any other messages. With this serialization method, the computation's result
-    /// could be affect for actor's state.
-    fn get_heavy_transformation(&self) -> Box<dyn Fn(Self::Request) -> Res<Self::Request> + Send> {
-        error!("Please implement get_heavy_transformation(...) method in RequestHandler implementation");
+    /// Same as the [`get_blocking_transformation`](fn@self::RequestHandler::get_blocking_transformation) method, but the returned
+    /// function will be executed by async operation in a spanned task which is started with
+    /// [`spawn`](fn@tokio::spawn)
+    fn get_async_transformation(&self) -> Box<dyn Fn(Self::Request) -> Pin<Box<dyn Future<Output=Res<Self::Request>> + Send>> + Send + Sync> {
+        error!("Please implement get_async_transformation(...) method in RequestHandler implementation");
         unimplemented!()
     }
 
     /// In this method can be handle those errors, which occurs when the send of reply was failed.
-    fn reply_error(&self, _result: Res<Self::Reply>){
+    fn reply_error(&self, _result: Res<Self::Reply>) {
         error!("Unable to send reply for request. Please reimplement reply_error(...) method in RequestHandler implementation");
     }
 }

@@ -7,8 +7,8 @@ use async_trait::async_trait;
 use chrono::Utc;
 
 use simple_actor::actor::server::actor::request::RequestActor;
-use simple_actor::common::{RequestHandler, Res};
 use simple_actor::ActorBuilder;
+use simple_actor::common::{RequestExecution, RequestHandler, Res};
 
 /// Computation requests
 #[derive(Debug)]
@@ -103,16 +103,16 @@ impl RequestHandler for ComputationActor {
     }
 
     /// Checks is the request a heavy computation which has to execute by separate thread
-    fn is_heavy(&self, request: &Self::Request) -> bool {
+    async fn classify_request(&mut self, request: Self::Request) -> RequestExecution<Self::Request> {
         match request {
-            ComputationRequests::HeavyComputation(_) => true,
-            _ => false
+            a @ ComputationRequests::HeavyComputation(_) => RequestExecution::Blocking(a),
+            s @ _ => RequestExecution::Sync(s)
         }
     }
 
     /// Return the function which will get the heavy computation request, execute it and
     /// transform its result into an another request
-    fn get_heavy_transformation(&self) -> Box<dyn Fn(Self::Request) -> Res<Self::Request> + Send> {
+    fn get_blocking_transformation(&self) -> Box<dyn Fn(Self::Request) -> Res<Self::Request> + Send> {
         Box::new(ComputationActor::heavy_computation)
     }
 }
