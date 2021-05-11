@@ -4,7 +4,7 @@ use async_trait::async_trait;
 
 use crate::actor::server::common::{ActorServerHandler, ProcessResult, ProcessResultBuilder};
 use crate::actor::server::handler::request::ActorAsyncRequestServerHandler;
-use crate::common::{Command, HybridHandler, RequestHandler, SimpleActorError};
+use crate::common::{Command, HybridHandler, RequestExecution, RequestHandler, SimpleActorError};
 
 /// Message and request handler implementation for hybrid actors
 pub(in crate) struct ActorHybridServerHandler<ME: Send, MR: Send, R: Send>
@@ -36,17 +36,24 @@ impl<ME, MR, R> ActorServerHandler for ActorHybridServerHandler<ME, MR, R>
     async fn process(&mut self, command: Command<Self::Message, Self::Request, Self::Reply>) -> ProcessResult<Self::Message, Self::Request, Self::Reply> {
         match command {
             Command::Request(request, reply_to) => {
-                if !self.handler.is_heavy(&request) {
-                    let res = self.handler.process_request(request).await;
-                    if let Err(e) = reply_to.send(res) {
-                        let ref_handler = self.as_request_handler_ref();
-                        ProcessResultBuilder::request_unable_to_send_reply(ref_handler, e).result()
-                    } else {
-                        ProcessResultBuilder::request_processed().result()
+                match self.handler.classify_request(request).await {
+                    RequestExecution::Sync(request) => {
+                        let res = self.handler.process_request(request).await;
+                        if let Err(e) = reply_to.send(res) {
+                            let ref_handler = self.as_request_handler_ref();
+                            ProcessResultBuilder::request_unable_to_send_reply(ref_handler, e).result()
+                        } else {
+                            ProcessResultBuilder::request_processed().result()
+                        }
                     }
-                } else {
-                    let transformation = self.handler.get_heavy_transformation();
-                    ActorAsyncRequestServerHandler::process::<Self::Message, Self::Request, Self::Reply>(request, reply_to, transformation)
+                    RequestExecution::Async(request) => {
+                        let transformation = self.handler.get_async_transformation();
+                        ActorAsyncRequestServerHandler::process_async::<Self::Message, Self::Request, Self::Reply>(request, reply_to, transformation)
+                    }
+                    RequestExecution::Blocking(request) => {
+                        let transformation = self.handler.get_blocking_transformation();
+                        ActorAsyncRequestServerHandler::process_blocking::<Self::Message, Self::Request, Self::Reply>(request, reply_to, transformation)
+                    }
                 }
             }
             Command::Message(message) =>
