@@ -271,7 +271,15 @@ impl<R, T> MessageHandler for ResourceActor<R, T>
 
 impl<R, T> HybridHandler for ResourceActor<R, T>
     where R: Send + Sync + 'static,
-          T: Send + Sync + 'static {}
+          T: Send + Sync + 'static {
+    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+        self
+    }
+
+    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+        self
+    }
+}
 
 
 /// Wraps client of the `ResourceActor` to hide inner processing requests which participate in resource allocation and asynchronous processing.

@@ -102,7 +102,15 @@ impl MessageBrokerActor {
 }
 
 /// MessageBrokerActor accepts messages and requests
-impl HybridHandler for MessageBrokerActor {}
+impl HybridHandler for MessageBrokerActor {
+    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+        self
+    }
+
+    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+        self
+    }
+}
 
 /// How to handle Messages
 #[async_trait]

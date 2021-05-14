@@ -28,8 +28,8 @@ impl<ME> SchedulerEventHandler<ME> for MessageActorScheduler<ME>
                 Ok(true)
             }
             Err(e) => {
-                error!("Scheduled message causes an error in `{}` actor: `{:?}`", self.0.name(), e);
-                Ok(false)
+                error!("Scheduled message has caused an error in `{}` actor: `{:?}`", self.0.name(), e);
+                Err(e)
             }
         }
     }

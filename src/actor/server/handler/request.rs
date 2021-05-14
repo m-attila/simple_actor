@@ -7,15 +7,56 @@ use tokio::sync::oneshot;
 use crate::actor::server::common::{ActorServerHandler, AsyncProcessResult, AsyncProcessResultBuilder, ProcessResult, ProcessResultBuilder};
 use crate::common::{Command, RequestExecution, RequestHandler, Res, SimpleActorError};
 
-/// Request handler implementation for request actors
-pub(in crate) struct ActorRequestServerHandler<MR: Send, R: Send> {
-    handler: Box<dyn RequestHandler<Request=MR, Reply=R>>
+/// It implements how the requests can be process
+pub(crate) struct RequestProcessor();
+
+impl RequestProcessor
+{
+    /// This function processes the requests
+    pub(crate) async fn process<ME, MR, R>(handler: &mut dyn RequestHandler<Request=MR, Reply=R>, command: Command<ME, MR, R>) -> ProcessResult<ME, MR, R>
+        where ME: Send + 'static,
+              MR: Send + 'static,
+              R: Send + 'static {
+        match command {
+            Command::Request(request, reply_to) => {
+                match handler.classify_request(request).await {
+                    RequestExecution::Sync(request) => {
+                        let res = handler.process_request(request).await;
+                        if let Err(e) = reply_to.send(res) {
+                            ProcessResultBuilder::request_unable_to_send_reply(handler, e).result()
+                        } else {
+                            ProcessResultBuilder::request_processed().result()
+                        }
+                    }
+                    RequestExecution::Async(request) => {
+                        let transformation = handler.get_async_transformation();
+                        ActorAsyncRequestServerHandler::process_async::<ME, MR, R>(request, reply_to, transformation)
+                    }
+                    RequestExecution::Blocking(request) => {
+                        let transformation = handler.get_blocking_transformation();
+                        ActorAsyncRequestServerHandler::process_blocking::<ME, MR, R>(request, reply_to, transformation)
+                    }
+                }
+            }
+            Command::RequestReplyError(res, _error) => {
+                handler.reply_error(res);
+                ProcessResultBuilder::request_processed().result()
+            }
+            _ =>
+                ProcessResultBuilder::request_bad().result()
+        }
+    }
 }
 
-impl<MR: Send, R: Send> ActorRequestServerHandler<MR, R> {
+/// Request handler implementation for request actors
+pub(crate) struct ActorRequestServerHandler<MR: Send, R: Send> (Box<dyn RequestHandler<Request=MR, Reply=R>>);
+
+impl<MR, R> ActorRequestServerHandler<MR, R>
+    where MR: Send + 'static,
+          R: Send + 'static {
     // Creates new instance to wrap RequestHandler into the implementation
     pub(crate) fn new(handler: Box<dyn RequestHandler<Request=MR, Reply=R>>) -> Self {
-        ActorRequestServerHandler { handler }
+        ActorRequestServerHandler(handler)
     }
 }
 
@@ -27,39 +68,12 @@ impl<MR, R> ActorServerHandler for ActorRequestServerHandler<MR, R>
     type Reply = R;
 
     async fn process(&mut self, command: Command<(), Self::Request, Self::Reply>) -> ProcessResult<Self::Message, Self::Request, Self::Reply> {
-        match command {
-            Command::Request(request, reply_to) => {
-                match self.handler.classify_request(request).await {
-                    RequestExecution::Sync(request) => {
-                        let res = self.handler.process_request(request).await;
-                        if let Err(e) = reply_to.send(res) {
-                            ProcessResultBuilder::request_unable_to_send_reply(self.handler.as_ref(), e).result()
-                        } else {
-                            ProcessResultBuilder::request_processed().result()
-                        }
-                    }
-                    RequestExecution::Async(request) => {
-                        let transformation = self.handler.get_async_transformation();
-                        ActorAsyncRequestServerHandler::process_async::<Self::Message, Self::Request, Self::Reply>(request, reply_to, transformation)
-                    }
-                    RequestExecution::Blocking(request) => {
-                        let transformation = self.handler.get_blocking_transformation();
-                        ActorAsyncRequestServerHandler::process_blocking::<Self::Message, Self::Request, Self::Reply>(request, reply_to, transformation)
-                    }
-                }
-            }
-            Command::RequestReplyError(res, _error) => {
-                self.handler.reply_error(res);
-                ProcessResultBuilder::request_processed().result()
-            }
-            _ =>
-                ProcessResultBuilder::request_bad().result()
-        }
+        RequestProcessor::process::<(), MR, R>(self.0.as_mut(), command).await
     }
 }
 
 /// Handle async processing requests
-pub(crate) struct ActorAsyncRequestServerHandler;
+struct ActorAsyncRequestServerHandler;
 
 impl ActorAsyncRequestServerHandler {
     /// Process a blocking request. Useful to calculate heavy computations

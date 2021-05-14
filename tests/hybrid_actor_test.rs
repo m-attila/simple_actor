@@ -67,7 +67,15 @@ impl RequestHandler for HybridActor {
     }
 }
 
-impl HybridHandler for HybridActor {}
+impl HybridHandler for HybridActor {
+    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+        self
+    }
+
+    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+        self
+    }
+}
 
 
 #[test]

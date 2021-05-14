@@ -13,6 +13,8 @@ use simple_actor::MessageScheduler;
 use simple_actor::Scheduling;
 
 use crate::common::{Number, NumError};
+use tokio::time::Instant;
+use std::ops::Add;
 
 mod common;
 
@@ -219,5 +221,80 @@ fn scheduled_message_actor_test() {
             Some(num) => assert!(num.value >= 3),
             None => panic!("isn't a NumError type!"),
         }
+    })
+}
+
+#[test]
+#[allow(unused_must_use)]
+fn once_scheduled_message_actor() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        // custom actor logic
+        let instance = TestActor { counter: 0 };
+
+        // wraps logic into message actor
+        let actor = ActorBuilder::new()
+            .name("TestActor")
+            .one_shot()
+            .message_actor(Box::new(instance))
+            .build();
+
+        // gets client for actor
+        let client = actor.client();
+
+        // start actor message scheduler
+        let when = Instant::now().add(Duration::from_millis(30));
+        let message_scheduler = MessageScheduler::new(1u128, Scheduling::OnceAt(when), client);
+
+        // waiting for 100ms
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        // scheduler graceful shutdown
+        message_scheduler.stop().await.unwrap();
+        // stop the actor
+        actor.stop().await.unwrap();
+    })
+}
+
+#[test]
+#[allow(unused_must_use)]
+fn scheduled_message_actor_stop() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        // custom actor logic
+        let instance = TestActor { counter: 0 };
+
+        // wraps logic into message actor
+        let actor = ActorBuilder::new()
+            .name("TestActor")
+            .one_shot()
+            .message_actor(Box::new(instance))
+            .build();
+
+        // gets client for actor
+        let client = actor.client();
+        let client1 = actor.client();
+
+        // start actor message scheduler
+        let message_scheduler = MessageScheduler::new(1u128, Scheduling::Periodic(Duration::from_millis(30)), client);
+
+        // waiting for 100ms
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        client1.message(1).await.unwrap();
+
+        // Gets exit value
+        actor.stop().await.unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Scheduler has stopped with error, because actor has stopped previously
+        message_scheduler.stop().await.unwrap_err();
+
     })
 }

@@ -98,7 +98,15 @@ impl SamplerActor {
     }
 }
 
-impl HybridHandler for SamplerActor {}
+impl HybridHandler for SamplerActor {
+    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+        self
+    }
+
+    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+        self
+    }
+}
 
 #[async_trait]
 impl MessageHandler for SamplerActor {

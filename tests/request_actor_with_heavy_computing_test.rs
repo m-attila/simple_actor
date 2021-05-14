@@ -2,6 +2,9 @@ extern crate async_trait;
 extern crate simple_actor;
 extern crate simple_logger;
 
+use std::future::Future;
+use std::pin::Pin;
+
 use async_trait::async_trait;
 use log::{info, LevelFilter};
 use simple_logger::SimpleLogger;
@@ -20,9 +23,11 @@ enum Request {
     Inc,
     Get,
     HeavyComputing,
+    HeavyComputingAsync,
     HeavyComputingShorter,
     HeavyComputingReady(Number),
     HeavyComputingWithError,
+    HeavyComputingCrashed,
 }
 
 #[derive(Debug)]
@@ -33,7 +38,7 @@ enum Response {
 }
 
 struct TestActor {
-    counter: Number
+    counter: Number,
 }
 
 impl TestActor {
@@ -67,8 +72,30 @@ impl TestActor {
                 std::thread::sleep(Duration::from_millis(50));
                 Err("error in heavy".into())
             }
+            Request::HeavyComputingCrashed => {
+                std::thread::sleep(Duration::from_millis(500));
+                panic!()
+            }
             _ => Err(format!("Invalid request:{:?}", request).into())
         }
+    }
+
+    fn heavy_computing_async(request: Request) -> Pin<Box<dyn Future<Output=Res<Request>> + Send>> {
+        Box::pin(async move {
+            match request {
+                Request::HeavyComputingAsync => {
+                    info!("Start asynchronous heavy computing");
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    info!("Stop asynchronous heavy computing");
+                    // Generate result of the heavy computing by internal 'Request'
+                    // which can be processed later by simple request
+                    // This procedure enable to reach the TestActor state for this result processing
+                    // in 'process_request' function
+                    Ok(Request::HeavyComputingReady(200000))
+                }
+                _ => Err(format!("Invalid request:{:?}", request).into())
+            }
+        })
     }
 }
 
@@ -81,8 +108,10 @@ impl RequestHandler for TestActor {
         match request {
             // Is the request required heavy computing?
             a @ Request::HeavyComputing => RequestExecution::Blocking(a),
+            a @ Request::HeavyComputingAsync => RequestExecution::Async(a),
             a @ Request::HeavyComputingShorter => RequestExecution::Blocking(a),
             a @ Request::HeavyComputingWithError => RequestExecution::Blocking(a),
+            a @ Request::HeavyComputingCrashed => RequestExecution::Blocking(a),
             s @ _ => RequestExecution::Sync(s)
         }
     }
@@ -90,6 +119,10 @@ impl RequestHandler for TestActor {
     /// Returns handle function which generates reply from request in heavy computing process
     fn get_blocking_transformation(&self) -> Box<dyn Fn(Self::Request) -> Res<Self::Request> + Send> {
         Box::new(TestActor::heavy_computing)
+    }
+
+    fn get_async_transformation(&self) -> Box<dyn Fn(Self::Request) -> Pin<Box<dyn Future<Output=Res<Self::Request>> + Send>> + Send + Sync> {
+        Box::new(TestActor::heavy_computing_async)
     }
 
     async fn process_request(&mut self, request: Self::Request) -> Res<Self::Reply> {
@@ -138,6 +171,7 @@ fn request_actor() {
         let client_heavy2 = actor.client();
         let client_heavy3 = actor.client();
         let client_heavy4 = actor.client();
+        let client_heavy_async = actor.client();
 
         let mut sum: u128 = 0;
 
@@ -145,6 +179,12 @@ fn request_actor() {
         let heavy_req = tokio::spawn(async move {
             info!("Start to send heavy computing request");
             client_heavy.request(Request::HeavyComputing).await
+        });
+
+        // starts async heavy computing
+        let heavy_req_async = tokio::spawn(async move {
+            info!("Start to send asynchronous heavy computing request");
+            client_heavy_async.request(Request::HeavyComputingAsync).await
         });
 
         // starts heavy computing what will cause an error
@@ -183,10 +223,18 @@ fn request_actor() {
             assert_eq!(sum, get_counter);
         } else { panic!("Bad response!") }
 
+        // Result of blocking heavy computing
         if let Ok(Response::HeavyResult(res)) = heavy_req.await.unwrap() {
             info!("Got heavy result: {}", res)
         } else {
             panic!("No heavy result")
+        }
+
+        // Result of asynchronous heavy computing
+        if let Ok(Response::HeavyResult(res)) = heavy_req_async.await.unwrap() {
+            info!("Got async heavy result: {}", res)
+        } else {
+            panic!("No async heavy result")
         }
 
         if let Err(x) = heavy_req_err.await.unwrap() {
@@ -200,5 +248,163 @@ fn request_actor() {
     })
 }
 
+#[test]
+#[allow(unused_must_use)]
+fn request_actor_blocking_actor_stopped() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        let instance = TestActor::new();
+
+        let actor = ActorBuilder::new()
+            .name("TestActor")
+            .one_shot()
+            .request_actor(Box::new(instance))
+            .build();
+
+        let client_heavy = actor.client();
+
+        // starts heavy computing
+        let heavy_req = tokio::spawn(async move {
+            info!("Start to send heavy computing request");
+            client_heavy.request(Request::HeavyComputing).await
+        });
+
+        // to ensure, heavy computing has started
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // stop actor during heavy computation
+        let exit = actor.stop().await;
+        info!("Exit with: {:?}", exit);
+
+        // Result of blocking heavy computing
+        if let Err(e) = heavy_req.await.unwrap() {
+            info!("Got heavy result error: {:?}", e);
+        } else {
+            panic!()
+        }
+    })
+}
+
+#[test]
+#[allow(unused_must_use)]
+fn request_actor_blocking_crashed() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        let instance = TestActor::new();
+
+        let actor = ActorBuilder::new()
+            .name("TestActor")
+            .one_shot()
+            .request_actor(Box::new(instance))
+            .build();
+
+        let client_heavy = actor.client();
+
+        // starts heavy computing
+        let heavy_req = tokio::spawn(async move {
+            info!("Start to send heavy computing request");
+            client_heavy.request(Request::HeavyComputingCrashed).await
+        });
+
+        // to ensure, heavy computing has started
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
 
+        // Result of blocking heavy computing
+        if let Err(e) = heavy_req.await.unwrap() {
+            info!("Got heavy result error: {:?}", e);
+        } else {
+            panic!()
+        }
+
+        // stop actor during heavy computation
+        let exit = actor.stop().await;
+        info!("Exit with: {:?}", exit);
+    })
+}
+
+#[test]
+#[allow(unused_must_use)]
+fn request_actor_blocking_error_actor_stopped() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        let instance = TestActor::new();
+
+        let actor = ActorBuilder::new()
+            .name("TestActor")
+            .one_shot()
+            .request_actor(Box::new(instance))
+            .build();
+
+        let client_heavy = actor.client();
+
+        // starts heavy computing
+        let heavy_req = tokio::spawn(async move {
+            info!("Start to send heavy computing request");
+            client_heavy.request(Request::HeavyComputingWithError).await
+        });
+
+        // to ensure, heavy computing has started
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        // stop actor during heavy computation
+        let exit = actor.stop().await;
+        info!("Exit with: {:?}", exit);
+
+        // Result of blocking heavy computing
+        if let Err(e) = heavy_req.await.unwrap() {
+            info!("Got heavy result error: {:?}", e);
+        } else {
+            panic!()
+        }
+    })
+}
+
+#[test]
+#[allow(unused_must_use)]
+fn request_actor_async_actor_stopped() {
+    SimpleLogger::new().init();
+    log::set_max_level(LevelFilter::Debug);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        let instance = TestActor::new();
+
+        let actor = ActorBuilder::new()
+            .name("TestActor")
+            .one_shot()
+            .request_actor(Box::new(instance))
+            .build();
+
+        let client_heavy = actor.client();
+
+        // starts heavy computing
+        let heavy_req = tokio::spawn(async move {
+            info!("Start to send heavy computing request");
+            client_heavy.request(Request::HeavyComputingAsync).await
+        });
+
+        // to ensure, heavy computing has started
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // stop actor during heavy computation
+        let exit = actor.stop().await;
+        info!("Exit with: {:?}", exit);
+
+        // Result of blocking heavy computing
+        if let Err(e) = heavy_req.await.unwrap() {
+            info!("Got heavy result error: {:?}", e);
+        } else {
+            panic!()
+        }
+    })
+}

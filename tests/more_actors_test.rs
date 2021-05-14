@@ -221,7 +221,15 @@ pub mod consumer {
     }
 
     #[async_trait]
-    impl HybridHandler for Calculator {}
+    impl HybridHandler for Calculator {
+        fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+            self
+        }
+
+        fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+            self
+        }
+    }
 
     /// Sum calculator function
     pub struct SumCalculatorFunction;
