@@ -264,7 +264,16 @@
 //! }
 //!
 //! /// Actor accepts both messages and requests
-//! impl HybridHandler for TestActor{}
+//! impl HybridHandler for TestActor{
+//!     // Some boilerplate code to help conversion from HybridHandler into RequestHandler
+//!     fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+//!         self
+//!     }
+//!
+//!     // Some boilerplate code to help conversion from HybridHandler into RequestHandler
+//!     fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+//!         self
+//!     }}
 //!
 //! #[tokio::main]
 //! pub async fn main() {
@@ -372,9 +381,9 @@
 //!
 //!     // Stop the actor first
 //!     actor.stop().await.unwrap();
-//!     // Stop the schedulers
-//!     message_scheduler_1.stop().await.unwrap();
-//!     message_scheduler_2.stop().await.unwrap()
+//!     // Stop the schedulers. Schedulers will returns with error, because actor already has stopped.
+//!     message_scheduler_1.stop().await.unwrap_err();
+//!     message_scheduler_2.stop().await.unwrap_err();
 //! }
 //! ```
 //!

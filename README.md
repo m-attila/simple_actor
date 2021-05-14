@@ -9,7 +9,7 @@ The commands can be *messages* and *requests*. Message is processed by asynchron
 caller's running.
 The request is processed by synchronously, the caller waits for its result. If the internal processing of the request
 is synchronous, actor could not receive the next command until the previous has finished. The internal request
-processing could be asynchronous too, when it starts a new tash with `tokio::task::spawn_blocking` or `tokio::spawn` methods,
+processing could be asynchronous too, when it starts a new task with the `tokio::task::spawn_blocking` or `tokio::spawn` methods,
 so the actor could go for the next command during its execution. When the thread execution has finished,
 its result will be send by an other request to the actor again. This new request can be synchronous
 which could change the actor state, and this, as a reply could go back to the client, as the original request's result.
@@ -247,7 +247,16 @@ impl RequestHandler for TestActor{
 }
 
 /// Actor accepts both messages and requests
-impl HybridHandler for TestActor{}
+impl HybridHandler for TestActor{
+    // Some boilerplate code to help conversion from HybridHandler into RequestHandler
+    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+        self
+    }
+
+    // Some boilerplate code to help conversion from HybridHandler into RequestHandler
+    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+        self
+    }}
 
 #[tokio::main]
 pub async fn main() {
@@ -283,7 +292,7 @@ pub async fn main() {
 ## Scheduling messages
 
 In the crate there is a scheduler mechanism, it can work together with those actors, which can receive messages.
-The [`MessageScheduler`](struct@crate::MessageScheduler) periodically sends messages into the actor where to belongs.
+The [`MessageScheduler`](struct@crate::MessageScheduler) periodically sends messages into the actor which belongs to the scheduler.
 One message actor may has more than one schedulers.
 
  ### Example
@@ -339,9 +348,9 @@ let actor = ActorBuilder::new()
 
     // Stop the actor first
     actor.stop().await.unwrap();
-    // Stop the schedulers
-    message_scheduler_1.stop().await.unwrap();
-    message_scheduler_2.stop().await.unwrap()
+    // Stop the schedulers. Schedulers will returns with error, because actor already has stopped.
+    message_scheduler_1.stop().await.unwrap_err();
+    message_scheduler_2.stop().await.unwrap_err();
 }
 ```
 
@@ -354,17 +363,17 @@ depend of their execution results.
 Introduces a public-subscribe messaging example for several topics, where the topic handler and the
 subscribers are actors.
 * `message_broker_with_dyn_consumers`
-Introduces a public-subscriber messaging example for several topics, such as the previous example,
+Introduces a public-subscriber messaging example for several topics, similary as the previous example,
 but only the topic handler is an actor, the clients are simple dynamic trait implementations.
 * `resource_pool`
-This example introduces a resource pool handler, when the clients send their callbacks to the actor,
-which generates an asycnhronous operation which uses the allocated resource. The resource pool maintains
-a set of resources which can be permanent and temporary. The pool keeps some permanent resources and
-when the load in increasing, create temporaries for a given threashold. After the load goes down,
-temporaries will be dropped.
+This example introduces a resource pool handler, where the clients send their callback functions to the actor.
+This functions generate an asycnhronous operation, which uses the allocated resource. The resource pool handles
+a set of resources which can be permanent and temporary ones. The pool keeps the permanent resources and
+when the load in increasing, it creates temporary ones, with a given idle time threshold. After the load goes down,
+and the idle time has elapsed, temporary resources will be dropped.
 * `sampler`
-This example shows, how can be attach schedulers to the actors. The schedulers transform periodically
-events into messages which can be handled in the actors.
+This example shows, how can be attach schedulers to the actors. The schedulers transform timer events
+into messages which can be handled in the actors.
 
 ## Logging
 

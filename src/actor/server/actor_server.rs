@@ -111,14 +111,14 @@ impl<ME, MR, R> ActorServer<ME, MR, R>
                                                         // The transformed result will be send the actor server itself.
                                                         if sender_c.send(command).await.is_err() {
                                                             error!("`{}` actor unable to send transformed request to itself", i_name);
-                                                            panic!("Actor server stopped")
+                                                            panic!("Actor server has already stopped")
                                                         }
                                                     }
                                                     Command::RequestReplyError(_, _) => {
                                                         // The transformed result will be send the actor server itself.
                                                         if sender_c.send(command).await.is_err() {
                                                             error!("`{}` actor unable to send transformed request to itself", i_name);
-                                                            panic!("Actor server stopped")
+                                                            panic!("Actor server has already stopped")
                                                         }
                                                     }
                                                     _ => {

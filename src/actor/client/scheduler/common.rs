@@ -210,5 +210,64 @@ mod tests {
                     sc2.abort();
                 })
         }
+
+        #[test]
+        fn handler_has_failed() {
+            struct FailedCounter {
+                counter: u32,
+            }
+
+            #[async_trait]
+            impl SchedulerEventHandler<Event> for FailedCounter {
+                async fn handle_timer_event(&mut self, event: &Event) -> Res<bool> {
+                    match event {
+                        Event::Tick => {
+                            self.counter += 1;
+                            Ok(true)
+                        }
+                        Event::Tock => Err("Tock is invalid".into())
+                    }
+                }
+            }
+
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let tc1 = Arc::new(Mutex::new(FailedCounter { counter: 0 }));
+            let tc2 = Arc::clone(&tc1);
+
+            rt.block_on(
+                async {
+                    let sc1 = Scheduler::new(Scheduling::Periodic(Duration::from_millis(100)), Event::Tick, tc1);
+                    let at = Instant::now().add(Duration::from_millis(100));
+                    let sc2 = Scheduler::new(Scheduling::OnceAt(at), Event::Tock, tc2);
+
+                    sc2.stop().await.unwrap_err();
+                    sc1.abort();
+                })
+        }
+
+
+        #[test]
+        fn handler_has_chrased() {
+            struct FailedCounter ();
+
+            #[async_trait]
+            impl SchedulerEventHandler<Event> for FailedCounter {
+                async fn handle_timer_event(&mut self, _event: &Event) -> Res<bool> {
+                   panic!()
+                }
+            }
+
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let tc = Arc::new(Mutex::new(FailedCounter ()));
+
+            rt.block_on(
+                async {
+                    let sc = Scheduler::new(Scheduling::Periodic(Duration::from_millis(10)), Event::Tick, tc);
+
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+
+                    sc.stop().await.unwrap_err();
+                })
+        }
     }
 }

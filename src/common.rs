@@ -135,7 +135,10 @@ pub trait RequestHandler: Send {
 
 /// This trait should be implemented to process actor's synchronous messages and asynchronous requests as well.
 #[async_trait]
-pub trait HybridHandler: Any + Send + MessageHandler + RequestHandler {}
+pub trait HybridHandler: Any + Send + MessageHandler + RequestHandler {
+    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request,Reply=Self::Reply>;
+    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request,Reply=Self::Reply>;
+}
 
 /// This trait should be implemented to handle actor initialization and terminate events.
 pub trait StateHandler: Send {
@@ -183,5 +186,91 @@ impl<'a> ActorErrorHandler<'a> {
         if let Self::Unprocessed(dynamic) = &self {
             func(dynamic)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate async_trait;
+
+    use std::convert::TryFrom;
+
+    use async_trait::async_trait;
+
+    use crate::{ActorError, RequestHandler, Res};
+    use crate::common::{ActorErrorHandler, RequestExecution, SimpleActorError};
+
+    #[test]
+    fn simple_actor_error() {
+        assert_eq!("Receive error", format!("{}", SimpleActorError::Receive));
+        assert_eq!("Send error", format!("{}", SimpleActorError::Send));
+        assert_eq!("Unexpected command", format!("{}", SimpleActorError::UnexpectedCommand));
+    }
+
+    #[test]
+    fn convert_from_actor_error() {
+        let ae: ActorError = SimpleActorError::Receive.into();
+        assert_eq!(SimpleActorError::Receive, SimpleActorError::try_from(&ae).unwrap());
+        let ae: ActorError = SimpleActorError::UnexpectedCommand.into();
+        assert_eq!(SimpleActorError::UnexpectedCommand, SimpleActorError::try_from(&ae).unwrap());
+        let ae: ActorError = SimpleActorError::Send.into();
+        assert_eq!(SimpleActorError::Send, SimpleActorError::try_from(&ae).unwrap());
+        let ae: ActorError = std::io::Error::from(std::io::ErrorKind::AddrInUse).into();
+        assert_eq!("Not a SimpleActorError type", SimpleActorError::try_from(&ae).unwrap_err());
+    }
+
+    #[test]
+    fn actor_error_handler() {
+        let ae: ActorError = SimpleActorError::Receive.into();
+        ActorErrorHandler::new(&ae)
+            .and_then::<std::io::Error>(&|_f| panic!())
+            .and_then::<SimpleActorError>(&|_f| println!("ok"))
+            .or_else(&|_f| panic!());
+
+        let ae: ActorError = SimpleActorError::Receive.into();
+        ActorErrorHandler::new(&ae)
+            .and_then::<std::io::Error>(&|_f| panic!())
+            .or_else(&|_f| println!("ok"));
+    }
+
+    struct Test();
+
+    #[async_trait]
+    impl RequestHandler for Test {
+        type Request = ();
+        type Reply = ();
+
+        async fn process_request(&mut self, _request: Self::Request) -> Res<Self::Reply> {
+            todo!()
+        }
+    }
+
+
+    #[test]
+    #[should_panic]
+    #[allow(unused_must_use)]
+    fn request_handler_unimpl_gbt() {
+        let handler = Test();
+        handler.get_blocking_transformation();
+    }
+
+    #[test]
+    #[should_panic]
+    #[allow(unused_must_use)]
+    fn request_handler_unimpl_gat() {
+        let handler = Test();
+        handler.get_async_transformation();
+    }
+
+    #[test]
+    fn request_handler_defaults() {
+        let mut handler = Test();
+        handler.reply_error(Ok(()));
+        let res=futures::executor::block_on(handler.classify_request(()));
+        match res{
+            RequestExecution::Sync(()) => (),
+            RequestExecution::Async(_) => panic!(),
+            RequestExecution::Blocking(_) => panic!()
+        };
     }
 }

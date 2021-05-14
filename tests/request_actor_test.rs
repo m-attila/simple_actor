@@ -87,6 +87,9 @@ fn request_actor() {
 
         let exit = actor.stop().await;
         info!("Exit with: {:?}", exit);
+
+        // Try to send after actor has stopped
+        client.request(Request::Inc(1)).await.unwrap_err();
     })
 }
 

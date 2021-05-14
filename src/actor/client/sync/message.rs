@@ -183,7 +183,15 @@ mod test {
         }
     }
 
-    impl HybridHandler for TestActor {}
+    impl HybridHandler for TestActor {
+        fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+            self
+        }
+
+        fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+            self
+        }
+    }
 
     #[test]
     fn notification_test() {
