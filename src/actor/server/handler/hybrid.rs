@@ -33,7 +33,7 @@ impl<ME, MR, R> ActorServerHandler for ActorHybridServerHandler<ME, MR, R>
         match command {
             Command::Message(message) =>
                 ProcessResultBuilder::message_processed(self.0.process_message(message).await).result(),
-            command @ _ =>
+            command =>
                 RequestProcessor::process::<ME, MR, R>(self.0.request_handler_mut(), command).await
         }
     }

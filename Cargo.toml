@@ -14,8 +14,13 @@ chrono = { version = "0.4", features = ["serde", "rustc-serialize"] }
 rand = "0.8.3"
 ansi_term = "0.12.1"
 futures = "0.3.14"
+criterion = { version = "0.3", features = ["async_futures", "async_tokio"] }
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1.48"
 log = "0.4.14"
+
+[[bench]]
+name = "actor_benchmark"
+harness = false
