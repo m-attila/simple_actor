@@ -123,7 +123,7 @@ pub mod consumer {
 
     use async_trait::async_trait;
 
-    use simple_actor::{HybridHandler, MessageHandler, RequestHandler, Res};
+    use simple_actor::{MessageHandler, RequestHandler, Res};
 
     /// Consumer messages
     #[derive(Debug)]
@@ -217,17 +217,6 @@ pub mod consumer {
                     Ok(Replies::Result(self.calc_fun.calculate(self.calculator.iter())))
                 }
             }
-        }
-    }
-
-    #[async_trait]
-    impl HybridHandler for Calculator {
-        fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-            self
-        }
-
-        fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-            self
         }
     }
 

@@ -4,7 +4,7 @@ use async_trait::async_trait;
 
 use simple_actor::ActorBuilder;
 use simple_actor::actor::server::actor::hybrid::HybridActor;
-use simple_actor::common::{HybridHandler, MessageHandler, RequestHandler, Res};
+use simple_actor::common::{MessageHandler, RequestHandler, Res};
 
 use crate::common::{Average, Measurement, SampleMessages, SampleRequest, SampleResponse};
 
@@ -95,16 +95,6 @@ impl SamplerActor {
             .one_shot()
             .hybrid_actor(Box::new(self))
             .build()
-    }
-}
-
-impl HybridHandler for SamplerActor {
-    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-        self
-    }
-
-    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-        self
     }
 }
 

@@ -8,7 +8,7 @@ use futures::future::join_all;
 
 use simple_actor::ActorBuilder;
 use simple_actor::actor::server::actor::hybrid::HybridActor;
-use simple_actor::common::{HybridHandler, MessageHandler, RequestHandler, Res};
+use simple_actor::common::{MessageHandler, RequestHandler, Res};
 
 use crate::common::{BrokerMessages, BrokerRequests, BrokerResponses, ConsumerId, ConsumerMessages, ConsumerRef, JsonMessage, Topic};
 
@@ -101,16 +101,16 @@ impl MessageBrokerActor {
     }
 }
 
-/// MessageBrokerActor accepts messages and requests
-impl HybridHandler for MessageBrokerActor {
-    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-        self
-    }
-
-    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-        self
-    }
-}
+// /// MessageBrokerActor accepts messages and requests
+// impl HybridHandler for MessageBrokerActor {
+//     fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+//         self
+//     }
+//
+//     fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+//         self
+//     }
+// }
 
 /// How to handle Messages
 #[async_trait]

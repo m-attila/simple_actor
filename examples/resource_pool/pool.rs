@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use log::{info, warn};
 use tokio::sync::Notify;
 
-use simple_actor::{ActorBuilder, ActorHybridClient, HybridHandler, MessageHandler, MessageScheduler, RequestHandler, Res, Scheduling};
+use simple_actor::{ActorBuilder, ActorHybridClient, MessageHandler, MessageScheduler, RequestHandler, Res, Scheduling};
 use simple_actor::actor::server::actor::hybrid::HybridActor;
 use simple_actor::common::{RequestExecution, SimpleActorError};
 
@@ -269,17 +269,17 @@ impl<R, T> MessageHandler for ResourceActor<R, T>
     }
 }
 
-impl<R, T> HybridHandler for ResourceActor<R, T>
-    where R: Send + Sync + 'static,
-          T: Send + Sync + 'static {
-    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-        self
-    }
-
-    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-        self
-    }
-}
+// impl<R, T> HybridHandler for ResourceActor<R, T>
+//     where R: Send + Sync + 'static,
+//           T: Send + Sync + 'static {
+//     fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+//         self
+//     }
+//
+//     fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
+//         self
+//     }
+// }
 
 
 /// Wraps client of the `ResourceActor` to hide inner processing requests which participate in resource allocation and asynchronous processing.
