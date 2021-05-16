@@ -1,5 +1,4 @@
 //! Common types and structs in simple_actor.
-use std::any::Any;
 use std::convert::TryFrom;
 use std::future::Future;
 use std::pin::Pin;
@@ -133,11 +132,31 @@ pub trait RequestHandler: Send {
     }
 }
 
-/// This trait should be implemented to process actor's synchronous messages and asynchronous requests as well.
+/// This trait merges the message handling and the request processing capabilities.
 #[async_trait]
-pub trait HybridHandler: Any + Send + MessageHandler + RequestHandler {
-    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request,Reply=Self::Reply>;
-    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request,Reply=Self::Reply>;
+pub trait HybridHandler: Send + MessageHandler + RequestHandler {
+    /// Returns the handler by request handler reference
+    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply>;
+    /// Returns the handler by request handler mutable reference
+    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply>;
+    /// Returns the handler by message handler reference
+    fn message_handler_ref(&self) -> &dyn MessageHandler<Message=Self::Message>;
+    /// Returns the handler by message handler mutable reference
+    fn message_handler_mut(&mut self) -> &mut dyn MessageHandler<Message=Self::Message>;
+}
+
+impl<T: 'static> HybridHandler for T where T: MessageHandler + RequestHandler {
+    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> { self }
+
+    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> { self }
+
+    fn message_handler_ref(&self) -> &dyn MessageHandler<Message=Self::Message> {
+        self
+    }
+
+    fn message_handler_mut(&mut self) -> &mut dyn MessageHandler<Message=Self::Message> {
+        self
+    }
 }
 
 /// This trait should be implemented to handle actor initialization and terminate events.
@@ -266,8 +285,8 @@ mod tests {
     fn request_handler_defaults() {
         let mut handler = Test();
         handler.reply_error(Ok(()));
-        let res=futures::executor::block_on(handler.classify_request(()));
-        match res{
+        let res = futures::executor::block_on(handler.classify_request(()));
+        match res {
             RequestExecution::Sync(()) => (),
             RequestExecution::Async(_) => panic!(),
             RequestExecution::Blocking(_) => panic!()

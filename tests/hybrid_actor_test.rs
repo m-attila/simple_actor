@@ -7,7 +7,7 @@ use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use tokio::time::Duration;
 
-use simple_actor::{HybridHandler, MessageHandler, RequestHandler, Res};
+use simple_actor::{MessageHandler, RequestHandler, Res};
 use simple_actor::ActorBuilder;
 use simple_actor::MessageScheduler;
 use simple_actor::Scheduling;
@@ -66,17 +66,6 @@ impl RequestHandler for HybridActor {
         }
     }
 }
-
-impl HybridHandler for HybridActor {
-    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-        self
-    }
-
-    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-        self
-    }
-}
-
 
 #[test]
 #[allow(unused_must_use)]

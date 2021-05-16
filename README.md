@@ -198,7 +198,7 @@ which can receive both messages and requests
 
 use async_trait::async_trait;
 use simple_actor::ActorBuilder;
-use simple_actor::{MessageHandler, RequestHandler, HybridHandler, Res};
+use simple_actor::{MessageHandler, RequestHandler, Res};
 
 // ...Test actor implementation from the messages actor's example...
 /// Available requests
@@ -246,17 +246,6 @@ impl RequestHandler for TestActor{
     }
 }
 
-/// Actor accepts both messages and requests
-impl HybridHandler for TestActor{
-    // Some boilerplate code to help conversion from HybridHandler into RequestHandler
-    fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-        self
-    }
-
-    // Some boilerplate code to help conversion from HybridHandler into RequestHandler
-    fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-        self
-    }}
 
 #[tokio::main]
 pub async fn main() {

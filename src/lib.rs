@@ -202,7 +202,7 @@
 //!
 //! use async_trait::async_trait;
 //! use simple_actor::ActorBuilder;
-//! use simple_actor::{MessageHandler, RequestHandler, HybridHandler, Res};
+//! use simple_actor::{MessageHandler, RequestHandler, Res};
 //!
 //! // ...Test actor implementation from the messages actor's example...
 //! # struct TestActor(i32);
@@ -263,17 +263,6 @@
 //!     }
 //! }
 //!
-//! /// Actor accepts both messages and requests
-//! impl HybridHandler for TestActor{
-//!     // Some boilerplate code to help conversion from HybridHandler into RequestHandler
-//!     fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-//!         self
-//!     }
-//!
-//!     // Some boilerplate code to help conversion from HybridHandler into RequestHandler
-//!     fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-//!         self
-//!     }}
 //!
 //! #[tokio::main]
 //! pub async fn main() {
@@ -416,7 +405,7 @@
 pub mod common;
 pub mod actor;
 
-pub use crate::common::{MessageHandler, RequestHandler, HybridHandler, Res, ActorError};
+pub use crate::common::{MessageHandler, RequestHandler, Res, ActorError};
 pub use crate::actor::server::actor::builder::common::ActorBuilder;
 pub use crate::actor::client::scheduler::common::Scheduling;
 pub use crate::actor::client::scheduler::message::MessageScheduler;

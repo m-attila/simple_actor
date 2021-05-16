@@ -132,7 +132,7 @@ mod test {
     use async_trait::async_trait;
     use tokio::sync::{Notify, Semaphore};
 
-    use crate::{ActorBuilder, HybridHandler, MessageHandler, RequestHandler, Res};
+    use crate::{ActorBuilder, MessageHandler, RequestHandler, Res};
     use crate::actor::client::sync::message::MessageActorNotify;
 
     /// Available notifications
@@ -180,16 +180,6 @@ mod test {
         async fn process_request(&mut self, _request: Self::Request) -> Res<Self::Reply> {
             // Only `Get` request is available
             Ok(Responses::Val(self.counter))
-        }
-    }
-
-    impl HybridHandler for TestActor {
-        fn request_handler_ref(&self) -> &dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-            self
-        }
-
-        fn request_handler_mut(&mut self) -> &mut dyn RequestHandler<Request=Self::Request, Reply=Self::Reply> {
-            self
         }
     }
 
