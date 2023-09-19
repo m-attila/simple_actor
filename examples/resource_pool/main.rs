@@ -1,3 +1,6 @@
+//! This example introduces a resource pool handler, which accepts operations as functions, allocates a database connection resource
+//! with which the operation can work.
+//! The handler executes the operation asynchronously and after the execution puts the resource back to the pool.
 extern crate async_trait;
 extern crate futures;
 extern crate log;
@@ -18,20 +21,19 @@ use simple_logger::SimpleLogger;
 use crate::common::{Error, ResourceFactory};
 use crate::pool::ResourcePool;
 
-/// Simulated query execution time range in milliseconds
+/// To generate a randomized query execution time.
 const QUERY_EXECUTION_TIME_MSEC: Range<u64> = 5..25;
-/// The query will report error in given ratio
+/// A likelihood that the query operation will be failed.
 const QUERY_FAILED_RATION: (u32, u32) = (1, 100);
-/// Range of the number of query's result lines
+/// Number of rows in the query's result. (min, max)
 const QUERY_RESULT_LINES: Range<usize> = 1..500;
-
-/// The simulated connection construction will report error in given ratio
+/// A likelihood of a failed connection to database.
 const CONNECT_FAILED_RATION: (u32, u32) = (1, 200);
-/// The connections which already built up, will report error after its allocation before usage
+/// A likelihood that a connection which is already built up, will be broken.
 const CONNECTION_CLOSED_RATIO: (u32, u32) = (1, 200);
-/// Duration range to build up new connection
+/// A range of time which necessary to build a new connection.
 const CONNECT_EXECUTION_TIME_MSEC: Range<u64> = 1..10;
-/// The temporary connections will be closed if it was not used since the given time
+/// A duration which if is elapsed then the temporary connection will be disposed.
 const CONNECTION_IDLE_TIME: Duration = Duration::from_millis(100);
 
 mod common;
@@ -50,7 +52,7 @@ impl std::fmt::Display for DbError {
         match self {
             DbError::UnableToConnect => write!(f, "Unable to connect to database"),
             DbError::ConnectionClosed => write!(f, "Connection closed"),
-            DbError::QueryError => write!(f, "Query error")
+            DbError::QueryError => write!(f, "Query error"),
         }
     }
 }
@@ -61,25 +63,27 @@ unsafe impl Send for DbError {}
 
 unsafe impl Sync for DbError {}
 
-/// Implements a simulated database resource which can execute queries
+/// Implement a simulated database resource which can execute queries
 #[derive(Debug)]
 struct DatabaseResource {}
 
 impl Drop for DatabaseResource {
     fn drop(&mut self) {
-        info!("Connection was closed");
+        info!("Connection has been closed");
     }
 }
 
-/// Used for error simulation
+/// Random error simulation
 fn random_failed(ratio: (u32, u32), error: DbError) -> Result<(), DbError> {
     let (numerator, denominator) = ratio;
     if rand::thread_rng().gen_ratio(numerator, denominator) {
         Err(error)
-    } else { Ok(()) }
+    } else {
+        Ok(())
+    }
 }
 
-/// Used to simulate different execution times
+/// To simulate different execution times
 async fn random_wait(msec_range: Range<u64>) {
     let msec = rand::thread_rng().gen_range(msec_range);
     tokio::time::sleep(Duration::from_millis(msec)).await;
@@ -87,11 +91,10 @@ async fn random_wait(msec_range: Range<u64>) {
 
 impl DatabaseResource {
     /// Execute a query operation.
-    /// The operation could be failed or succeeded. The execution time is simulated with tokio's sleep
-    /// method with random waiting times.
+    /// The operation could be failed or succeeded. The execution time is simulated with tokio's sleep.
     async fn query(&self) -> Result<Vec<String>, DbError> {
         if let Err(e) = random_failed(QUERY_FAILED_RATION, DbError::QueryError) {
-            error!("Query has failed");
+            error!("Query has been failed");
             return Err(e);
         }
 
@@ -109,8 +112,8 @@ impl DatabaseResource {
     }
 }
 
-/// Implements a [`ResourceFactory`](struct@crate::pool::ResourceFactory) implementation to generate
-/// [`DatabaseResource`](struct@DatabaseResource) instances
+/// Implement a [`ResourceFactory`](struct@crate::pool::ResourceFactory) to generate
+/// [`DatabaseResource`](struct@DatabaseResource) instances.
 struct DatabaseResourceFactory {}
 
 #[async_trait]
@@ -126,23 +129,26 @@ impl ResourceFactory<DatabaseResource> for DatabaseResourceFactory {
     }
 }
 
-/// This introduces how can be use the resources pool from a client. It get an allocated database resource
-/// and return with an asynchronous operation which works with it. This function will be send by request to
-/// the resource pool, which will allocate a new resource and by execute this function generates the asynchronous operation.
-/// After this, the operation will be executed by task. If the task will be finished, the pool get back from it the resource
-/// and put back into the pool.
-fn query(connecion: DatabaseResource) -> Pin<Box<dyn Future<Output=(Result<Vec<String>, DbError>, DatabaseResource)> + Send>> {
+/// This function introduces how a client can use the resources pool.
+///
+/// The function receives an allocated database connection and produces an asynchronous task which can execute a
+/// query operation on this connection. This function will be sent as a request to the resource pool.
+/// When the request has been delivered to the pool, it tries to allocate a free connection then calls this function to produce a query task.
+/// This task will be executed asynchronously. After the task has finished, the pool get back the connection.
+fn query(
+    connecion: DatabaseResource,
+) -> Pin<Box<dyn Future<Output = (Result<Vec<String>, DbError>, DatabaseResource)> + Send>> {
     Box::pin(async move {
         // Execute the query
         let ret = connecion.query().await;
         match ret {
             Ok(lines) => {
-                // Return with the result and with the allocated resource to put back into the pool
+                // Return the result and the allocated resource to put back into the pool
                 (Ok(lines), connecion)
             }
             Err(e) => {
                 error!("Query was failed: {:?}", e);
-                // Return with the error and with the allocated resource to put back into the pool
+                // Return the error and the allocated resource to put back into the pool
                 (Err(e), connecion)
             }
         }
@@ -152,43 +158,49 @@ fn query(connecion: DatabaseResource) -> Pin<Box<dyn Future<Output=(Result<Vec<S
 #[allow(unused_must_use)]
 #[tokio::main]
 pub async fn main() {
-    SimpleLogger::new().init();
+    main_internal().await
+}
+
+async fn main_internal() {
+    SimpleLogger::new().init().unwrap();
     log::set_max_level(LevelFilter::Info);
 
     // Create the pool
-    let pool =
-        ResourcePool::<DatabaseResource, Result<Vec<String>, DbError>>::new(10,
-                                                                            50,
-                                                                            CONNECTION_IDLE_TIME,
-                                                                            Box::new(DatabaseResourceFactory {}));
-    // The request will be placed by futures into this vector, so all request runs concurrently
+    let pool = ResourcePool::<DatabaseResource, Result<Vec<String>, DbError>>::new(
+        10,
+        50,
+        CONNECTION_IDLE_TIME,
+        Box::new(DatabaseResourceFactory {}),
+    );
+    // All requests will be placed as a task into this vector, thus all requests run concurrently
     let mut requests = Vec::new();
     // Start concurrent requests
     for _ in 0..5000 {
         let client = pool.client();
-        let b = async move {
-            client.exec(query).await
-        };
+        let b = async move { client.exec(query).await };
         requests.push(b);
-    };
+    }
 
-    // wait for all requests has finished
+    // wait for all requests are finished
     join_all(requests).await;
 
     // wait a time until the pool drops all temporary resources
     tokio::time::sleep(CONNECTION_IDLE_TIME.add(Duration::from_millis(50))).await;
 
-    // start the request again
+    // start the request generation again
     let mut requests = Vec::new();
     for _ in 0..5000 {
         let client = pool.client();
-        let b = async move {
-            client.exec(query).await
-        };
+        let b = async move { client.exec(query).await };
         requests.push(b);
-    };
+    }
     join_all(requests).await;
 
     // stop the pool
-    pool.stop().await;
+    let _ = pool.stop().await;
+}
+
+#[tokio::test]
+async fn my_test() {
+    main_internal().await
 }

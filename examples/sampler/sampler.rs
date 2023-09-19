@@ -2,9 +2,9 @@ extern crate async_trait;
 
 use async_trait::async_trait;
 
-use simple_actor::ActorBuilder;
 use simple_actor::actor::server::actor::hybrid::HybridActor;
 use simple_actor::common::{MessageHandler, RequestHandler, Res};
+use simple_actor::ActorBuilder;
 
 use crate::common::{Average, Measurement, SampleMessages, SampleRequest, SampleResponse};
 
@@ -15,7 +15,7 @@ const MAX_STORED_AVERAGES: usize = 128;
 struct Sampler {
     /// Count of measurement data which was received since last time markup
     counter: u128,
-    /// Summaries of measurement data
+    /// Summary of measurement data
     sums: u128,
     /// The stored averages on each time markup
     averages: Vec<Average>,
@@ -32,14 +32,14 @@ impl Default for Sampler {
 }
 
 impl Sampler {
-    /// Stores new measurement data
+    /// Store new measurement data
     fn store(&mut self, data: Measurement) {
         self.counter += 1;
         self.sums += data as u128;
     }
 
-    /// Calculate new averages from those measurements which was received since previous
-    /// time markup, and stars new averaging process
+    /// Calculate a new average from those measurements which were received since the previous
+    /// time markup, and start a new averaging process
     fn mark_position(&mut self) {
         if self.averages.len() == MAX_STORED_AVERAGES {
             self.averages.remove(0);
@@ -48,7 +48,7 @@ impl Sampler {
         self.reset();
     }
 
-    /// Returns all the average data since actor was started
+    /// Return all average data since the actor was started
     pub fn averages(&mut self) -> Vec<Average> {
         std::mem::replace(self.averages.as_mut(), Vec::with_capacity(128))
     }
@@ -63,7 +63,7 @@ impl Sampler {
         Average::new(average)
     }
 
-    /// Reset averaging process data
+    /// Reset data
     fn reset(&mut self) {
         self.counter = 0;
         self.sums = 0;
@@ -79,7 +79,7 @@ pub struct SamplerActor {
 }
 
 impl SamplerActor {
-    /// Creates new actor with given receive buffer size
+    /// Create a new actor with a given receive buffer size
     pub fn new(buffer_size: usize) -> Self {
         Self {
             buffer_size,
@@ -87,7 +87,7 @@ impl SamplerActor {
         }
     }
 
-    /// Starts the actor
+    /// Start the actor
     pub fn start(self) -> HybridActor<SampleMessages, SampleRequest, SampleResponse> {
         ActorBuilder::new()
             .name("sampler")
@@ -104,10 +104,10 @@ impl MessageHandler for SamplerActor {
 
     async fn process_message(&mut self, message: Self::Message) -> Res<()> {
         match message {
-            // Handle measurement data storing
+            // Handle measurement data
             SampleMessages::Store(m) => self.sampler.store(m),
-            // Handle new time markup command
-            SampleMessages::MarkPosition => self.sampler.mark_position()
+            // Handle the markup command
+            SampleMessages::MarkPosition => self.sampler.mark_position(),
         }
         Ok(())
     }

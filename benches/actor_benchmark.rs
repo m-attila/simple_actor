@@ -6,12 +6,10 @@ use std::future::Future;
 use std::pin::Pin;
 
 use async_trait::async_trait;
-use criterion::{BatchSize, black_box, Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 
-use simple_actor::{ActorBuilder, RequestHandler, Res};
 use simple_actor::common::RequestExecution;
-
-// use criterion::async_executor::FuturesExecutor;
+use simple_actor::{ActorBuilder, RequestHandler, Res};
 
 #[derive(Debug)]
 enum ActorRequests {
@@ -24,7 +22,7 @@ enum ActorRequests {
 
 #[derive(Debug)]
 enum ActorResponses {
-    Result(u32)
+    Result(u32),
 }
 
 struct TestActor();
@@ -33,17 +31,15 @@ impl TestActor {
     fn blocking_add(req: ActorRequests) -> Res<ActorRequests> {
         match req {
             ActorRequests::BlockingAdd(x, y) => Ok(ActorRequests::BlockingAddResult(x + y)),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
-    fn async_add(req: ActorRequests) -> Pin<Box<dyn Future<Output=Res<ActorRequests>> + Send>> {
+    fn async_add(req: ActorRequests) -> Pin<Box<dyn Future<Output = Res<ActorRequests>> + Send>> {
         Box::pin(async move {
             match req {
-                ActorRequests::AsyncAdd(x, y) => {
-                    Ok(ActorRequests::AsyncAddResult(x + y))
-                }
-                _ => unreachable!()
+                ActorRequests::AsyncAdd(x, y) => Ok(ActorRequests::AsyncAddResult(x + y)),
+                _ => unreachable!(),
             }
         })
     }
@@ -63,7 +59,10 @@ impl RequestHandler for TestActor {
         }
     }
 
-    async fn classify_request(&mut self, request: Self::Request) -> RequestExecution<Self::Request> {
+    async fn classify_request(
+        &mut self,
+        request: Self::Request,
+    ) -> RequestExecution<Self::Request> {
         match request {
             s @ ActorRequests::Add(_, _) => RequestExecution::Sync(s),
             a @ ActorRequests::BlockingAdd(_, _) => RequestExecution::Blocking(a),
@@ -73,11 +72,19 @@ impl RequestHandler for TestActor {
         }
     }
 
-    fn get_blocking_transformation(&self) -> Box<dyn Fn(Self::Request) -> Res<Self::Request> + Send> {
+    fn get_blocking_transformation(
+        &self,
+    ) -> Box<dyn Fn(Self::Request) -> Res<Self::Request> + Send> {
         Box::new(TestActor::blocking_add)
     }
 
-    fn get_async_transformation(&self) -> Box<dyn Fn(Self::Request) -> Pin<Box<dyn Future<Output=Res<Self::Request>> + Send>> + Send + Sync> {
+    fn get_async_transformation(
+        &self,
+    ) -> Box<
+        dyn Fn(Self::Request) -> Pin<Box<dyn Future<Output = Res<Self::Request>> + Send>>
+            + Send
+            + Sync,
+    > {
         Box::new(TestActor::async_add)
     }
 }
@@ -88,8 +95,8 @@ pub fn request_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("requests");
 
     group.bench_function("req_actor_sync", |b| {
-        b.to_async(&rt)
-            .iter_batched(|| {
+        b.to_async(&rt).iter_batched(
+            || {
                 let actor = ActorBuilder::new()
                     .receive_buffer_size(10240)
                     .one_shot()
@@ -98,12 +105,9 @@ pub fn request_benchmark(c: &mut Criterion) {
                 let client = actor.client();
                 (actor, client)
             },
-                          |(_actor, client)|
-                              async move {
-                                  client.request(ActorRequests::Add(10, 20)).await
-                              }
-                          , BatchSize::SmallInput,
-            )
+            |(_actor, client)| async move { client.request(ActorRequests::Add(10, 20)).await },
+            BatchSize::SmallInput,
+        )
     });
 
     group.bench_function("req_actor_block", |b| {
@@ -126,8 +130,8 @@ pub fn request_benchmark(c: &mut Criterion) {
     });
 
     group.bench_function("req_actor_async", |b| {
-        b.to_async(&rt)
-            .iter_batched(|| {
+        b.to_async(&rt).iter_batched(
+            || {
                 let actor = ActorBuilder::new()
                     .receive_buffer_size(10240)
                     .one_shot()
@@ -136,12 +140,9 @@ pub fn request_benchmark(c: &mut Criterion) {
                 let client = actor.client();
                 (actor, client)
             },
-                          |(_actor, client)|
-                              async move {
-                                  client.request(ActorRequests::AsyncAdd(10, 20)).await
-                              }
-                          , BatchSize::SmallInput,
-            )
+            |(_actor, client)| async move { client.request(ActorRequests::AsyncAdd(10, 20)).await },
+            BatchSize::SmallInput,
+        )
     });
     group.finish();
 }

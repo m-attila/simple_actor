@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use tokio::sync::{Notify, Semaphore};
 
-use crate::{ActorMessageClient, Res};
 use crate::common::SimpleActorError;
+use crate::{ActorMessageClient, Res};
 
 /// Available synchronization types
 enum Synchronization {
@@ -19,13 +19,13 @@ impl Synchronization {
                 s.notified().await;
                 Ok(())
             }
-            Synchronization::Semaphore(s) => {
-                s.acquire().await.map_or_else(|_| Err(SimpleActorError::Receive.into()),
-                                              |f| {
-                                                  f.forget();
-                                                  Ok(())
-                                              })
-            }
+            Synchronization::Semaphore(s) => s.acquire().await.map_or_else(
+                |_| Err(SimpleActorError::Receive.into()),
+                |f| {
+                    f.forget();
+                    Ok(())
+                },
+            ),
         }
     }
 
@@ -33,7 +33,7 @@ impl Synchronization {
     fn stop(self) {
         match self {
             Synchronization::Notify(_) => (),
-            Synchronization::Semaphore(s) => s.close()
+            Synchronization::Semaphore(s) => s.close(),
         }
     }
 }
@@ -41,8 +41,8 @@ impl Synchronization {
 impl Clone for Synchronization {
     fn clone(&self) -> Self {
         match self {
-            Synchronization::Notify(n) => Synchronization::Notify(Arc::clone(&n)),
-            Synchronization::Semaphore(n) => Synchronization::Semaphore(Arc::clone(&n)),
+            Synchronization::Notify(n) => Synchronization::Notify(Arc::clone(n)),
+            Synchronization::Semaphore(n) => Synchronization::Semaphore(Arc::clone(n)),
         }
     }
 }
@@ -50,33 +50,40 @@ impl Clone for Synchronization {
 /// Integrate `tokio::sync::Notify with message actors.
 pub struct MessageActorNotify<ME> {
     /// Client of an message actor
-    client: Option<Box<dyn ActorMessageClient<Message=ME> + Send + Sync>>,
+    client: Option<Box<dyn ActorMessageClient<Message = ME> + Send + Sync>>,
     /// Stop notification
     stop: Arc<Notify>,
     /// Listened notification
     synchron: Synchronization,
-    /// Message which will be sent to the actor when `notify` is notified
+    /// Message which will be sent to the actor when `notify` is fired
     message: ME,
 }
 
 impl<ME: Send + Sync + Clone + 'static> MessageActorNotify<ME> {
     /// Integration between actor's client and notification
-    pub fn notify(client: Box<dyn ActorMessageClient<Message=ME> + Send + Sync>,
-                  notify: Arc<Notify>,
-                  message: ME) -> Self {
+    pub fn notify(
+        client: Box<dyn ActorMessageClient<Message = ME> + Send + Sync>,
+        notify: Arc<Notify>,
+        message: ME,
+    ) -> Self {
         MessageActorNotify::new(client, message, Synchronization::Notify(notify))
     }
 
-
     /// Integration between actor's client and semaphore
-    pub fn semaphore(client: Box<dyn ActorMessageClient<Message=ME> + Send + Sync>,
-                     semaphore: Arc<Semaphore>,
-                     message: ME) -> Self {
+    pub fn semaphore(
+        client: Box<dyn ActorMessageClient<Message = ME> + Send + Sync>,
+        semaphore: Arc<Semaphore>,
+        message: ME,
+    ) -> Self {
         MessageActorNotify::new(client, message, Synchronization::Semaphore(semaphore))
     }
 
     /// Create new instance
-    fn new(client: Box<dyn ActorMessageClient<Message=ME> + Send + Sync>, message: ME, sync: Synchronization) -> MessageActorNotify<ME> {
+    fn new(
+        client: Box<dyn ActorMessageClient<Message = ME> + Send + Sync>,
+        message: ME,
+        sync: Synchronization,
+    ) -> MessageActorNotify<ME> {
         MessageActorNotify {
             client: Some(client),
             stop: Arc::new(Notify::new()),
@@ -85,7 +92,7 @@ impl<ME: Send + Sync + Clone + 'static> MessageActorNotify<ME> {
         }
     }
 
-    /// Start interface which will listen for notification and fire message when it was notified
+    /// Start an interface which will listen for notification and fire a message when a notification has been occurred
     #[allow(unused_must_use)]
     pub fn start(&mut self) {
         let synchron = self.synchron.clone();
@@ -132,33 +139,33 @@ mod test {
     use async_trait::async_trait;
     use tokio::sync::{Notify, Semaphore};
 
-    use crate::{ActorBuilder, MessageHandler, RequestHandler, Res};
     use crate::actor::client::sync::message::MessageActorNotify;
+    use crate::{ActorBuilder, MessageHandler, RequestHandler, Res};
 
     /// Available notifications
     #[derive(Debug, Clone)]
     enum Messages {
         /// Notify actor
-        Notify
+        Notify,
     }
 
     /// Available requests
     #[derive(Debug)]
     enum Requests {
         /// Get actor counter value
-        Get
+        Get,
     }
 
     /// Available responses
     #[derive(Debug, PartialEq)]
     enum Responses {
         /// Return actor counter value
-        Val(u32)
+        Val(u32),
     }
 
     /// Test actor
     struct TestActor {
-        counter: u32
+        counter: u32,
     }
 
     #[async_trait]
@@ -187,72 +194,84 @@ mod test {
     fn notification_test() {
         let rt = tokio::runtime::Runtime::new().unwrap();
 
-        rt.block_on(
-            async {
-                // Create hybrid actor
-                let actor = ActorBuilder::new()
-                    .one_shot()
-                    .hybrid_actor(Box::new(TestActor { counter: 0 }))
-                    .build();
+        rt.block_on(async {
+            // Create hybrid actor
+            let actor = ActorBuilder::new()
+                .one_shot()
+                .hybrid_actor(Box::new(TestActor { counter: 0 }))
+                .build();
 
-                // Create notification
-                let notify = Arc::new(Notify::new());
+            // Create notification
+            let notify = Arc::new(Notify::new());
 
-                // Bind notification to actor with given message
-                let mut notify_interface = MessageActorNotify::notify(
-                    actor.message_client(),
-                    Arc::clone(&notify),
-                    Messages::Notify);
-                notify_interface.start();
+            // Bind notification to actor with given message
+            let mut notify_interface = MessageActorNotify::notify(
+                actor.message_client(),
+                Arc::clone(&notify),
+                Messages::Notify,
+            );
+            notify_interface.start();
 
-                // Create semaphore
-                let semaphore = Arc::new(Semaphore::new(0));
+            // Create semaphore
+            let semaphore = Arc::new(Semaphore::new(0));
 
-                // Bind semaphore to actor with same message
-                let mut semaphore_interface = MessageActorNotify::semaphore(
-                    actor.message_client(),
-                    Arc::clone(&semaphore),
-                    Messages::Notify);
-                semaphore_interface.start();
+            // Bind semaphore to actor with same message
+            let mut semaphore_interface = MessageActorNotify::semaphore(
+                actor.message_client(),
+                Arc::clone(&semaphore),
+                Messages::Notify,
+            );
+            semaphore_interface.start();
 
-                // Create client for this test
-                let client = actor.client();
+            // Create client for this test
+            let client = actor.client();
 
-                // Initially, the counter is zero
-                assert_eq!(Responses::Val(0), client.request(Requests::Get).await.unwrap());
+            // Initially, the counter is zero
+            assert_eq!(
+                Responses::Val(0),
+                client.request(Requests::Get).await.unwrap()
+            );
 
-                // Waiting a while, to ensure the notify_interface has started
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                // Fire notification
-                notify.notify_waiters();
-                // Waiting a while to ensure notification and message has processed
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                // The counter is incremented for notification's affect
-                assert_eq!(Responses::Val(1), client.request(Requests::Get).await.unwrap());
+            // Waiting a while, to ensure the notify_interface has started
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            // Fire notification
+            notify.notify_waiters();
+            // Waiting a while to ensure notification and message has processed
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            // The counter is incremented for notification's affect
+            assert_eq!(
+                Responses::Val(1),
+                client.request(Requests::Get).await.unwrap()
+            );
 
-                // Add 15 permits to semaphore
-                semaphore.add_permits(10);
-                semaphore.add_permits(5);
+            // Add 15 permits to semaphore
+            semaphore.add_permits(10);
+            semaphore.add_permits(5);
 
-                // Waiting a while to ensure semaphore permits and messages has processed
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                assert_eq!(Responses::Val(1 + 15), client.request(Requests::Get).await.unwrap());
+            // Waiting a while to ensure semaphore permits and messages has processed
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            assert_eq!(
+                Responses::Val(1 + 15),
+                client.request(Requests::Get).await.unwrap()
+            );
 
-                // The semaphore closing does not cause error
-                semaphore.close();
-                // Fire notification agaion
-                notify.notify_waiters();
-                // Waiting a while...
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                assert_eq!(Responses::Val(1 + 15 + 1), client.request(Requests::Get).await.unwrap());
+            // The semaphore closing does not cause error
+            semaphore.close();
+            // Fire notification agaion
+            notify.notify_waiters();
+            // Waiting a while...
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            assert_eq!(
+                Responses::Val(1 + 15 + 1),
+                client.request(Requests::Get).await.unwrap()
+            );
 
-                // stop interfaces
-                notify_interface.stop();
-                semaphore_interface.stop();
+            // stop interfaces
+            notify_interface.stop();
+            semaphore_interface.stop();
 
-                // stop actor
-                actor.stop().await.unwrap();
-            }
-        )
+            // stop actor
+            actor.stop().await.unwrap();
+        })
     }
 }

@@ -14,20 +14,20 @@ use crate::common::Res;
 pub enum Scheduling {
     /// Periodic with given interval
     Periodic(time::Duration),
-    /// Periodic at given time
+    /// Periodic until a given point of time
     PeriodicAt(time::Instant, time::Duration),
-    // Only once at given time
+    /// Only once at a given point of time
     OnceAt(time::Instant),
 }
 
 /// This trait specifies how to handle scheduled event
 #[async_trait]
 pub trait SchedulerEventHandler<E: Send>: Send + Sync {
-    /// Process scheduler event. Returns `false` if scheduling process should be stop.
+    /// Process scheduler event. Returns `false` if scheduling process have to stop.
     async fn handle_timer_event(&mut self, _event: &E) -> Res<bool>;
 }
 
-/// Stores scheduler data
+/// Store scheduler data
 struct SchedulerData<E: Send> {
     event: E,
     stype: Scheduling,
@@ -37,7 +37,12 @@ struct SchedulerData<E: Send> {
 
 impl<E: Send> SchedulerData<E> {
     fn new(event: E, stype: Scheduling, handler: Arc<Mutex<dyn SchedulerEventHandler<E>>>) -> Self {
-        Self { event, stype, handler, interval: None }
+        Self {
+            event,
+            stype,
+            handler,
+            interval: None,
+        }
     }
 
     fn set_interval(&mut self, interval: time::Interval) {
@@ -52,39 +57,39 @@ impl<E: Send> SchedulerData<E> {
 
     async fn looping(&mut self) -> Res<()> {
         self.set_interval(match self.stype {
-            Scheduling::Periodic(duration) => {
-                time::interval(duration)
-            }
-            Scheduling::PeriodicAt(start, duration) => {
-                time::interval_at(start, duration)
-            }
-            Scheduling::OnceAt(start) => {
-                time::interval_at(start, Duration::from_nanos(1))
-            }
+            Scheduling::Periodic(duration) => time::interval(duration),
+            Scheduling::PeriodicAt(start, duration) => time::interval_at(start, duration),
+            Scheduling::OnceAt(start) => time::interval_at(start, Duration::from_nanos(1)),
         });
 
-        trace!("Scheduler loop was started with `{:?}` scheduling", &self.stype);
+        trace!(
+            "Scheduler loop has started with `{:?}` scheduling",
+            &self.stype
+        );
 
         loop {
             self.tick().await;
-            trace!("Scheduler was fired");
+            trace!("Event has been fired");
             let mut x = self.handler.lock().await;
             let result = x.handle_timer_event(&self.event).await;
             match result {
                 Ok(again) => {
-                    trace!("Scheduled event was handled success");
+                    trace!("Scheduled event has been handled successfully");
                     if !again {
-                        trace!("Handler was stopped the scheduler");
+                        trace!("Event handler has stopped the scheduler");
                         break Ok(());
                     }
                 }
                 Err(e) => {
-                    error!("Error occurred by handling scheduled event: `{:?}`", e);
+                    error!(
+                        "An error has been occurred when handling a scheduler event: `{:?}`",
+                        e
+                    );
                     break Err(e);
                 }
             }
             if let Scheduling::OnceAt(_) = self.stype {
-                trace!("Because event by scheduled only once, scheduler was stopped");
+                trace!("The event is scheduled only once, thus the scheduler has stopped");
                 break Ok(());
             }
         }
@@ -97,26 +102,31 @@ pub struct Scheduler {
 }
 
 impl Scheduler {
-    /// Starts new scheduler
-    pub fn new<E: 'static + Send + Sync>(stype: Scheduling, event: E,
-                                         handler: Arc<Mutex<dyn SchedulerEventHandler<E>>>) -> Self {
-        info!("Scheduler was created: {:?}", stype);
+    /// Start new scheduler
+    pub fn new<E: 'static + Send + Sync>(
+        stype: Scheduling,
+        event: E,
+        handler: Arc<Mutex<dyn SchedulerEventHandler<E>>>,
+    ) -> Self {
+        info!("Scheduler has been created: {:?}", stype);
         let handle = tokio::spawn(async move {
             let mut data = SchedulerData::new(event, stype, handler);
             data.looping().await
         });
-        Scheduler { thread_handle: handle }
+        Scheduler {
+            thread_handle: handle,
+        }
     }
 
-    /// Stops the scheduler gracefully
+    /// Stop the scheduler gracefully
     pub async fn stop(self) -> Res<()> {
         match self.thread_handle.await {
             Ok(r) => {
-                info!("Scheduler was stopped by result: `{:?}`", r);
+                info!("Scheduler has stopped with the following result: `{:?}`", r);
                 r
             }
             Err(e) => {
-                error!("Scheduler was stopped by error: `{:?}`", e);
+                error!("Scheduler has stopped with the following error: `{:?}`", e);
                 Err(e.into())
             }
         }
@@ -125,7 +135,7 @@ impl Scheduler {
     /// Abort the scheduler
     pub fn abort(self) {
         self.thread_handle.abort();
-        warn!("Scheduler was aborted");
+        warn!("Scheduler has been aborted");
     }
 }
 
@@ -153,62 +163,91 @@ mod tests {
         impl SchedulerEventHandler<Event> for TestCounter {
             async fn handle_timer_event(&mut self, event: &Event) -> Res<bool> {
                 match event {
-                    Event::Tick => if self.counter < self.max { self.counter += 1 },
-                    Event::Tock => println!("Counter : {}", self.counter)
+                    Event::Tick => {
+                        if self.counter < self.max {
+                            self.counter += 1
+                        }
+                    }
+                    Event::Tock => println!("Counter : {}", self.counter),
                 };
                 Ok(self.counter < self.max)
             }
         }
 
-
         #[test]
         fn periodic_test() {
             let rt = tokio::runtime::Runtime::new().unwrap();
-            let tc1 = Arc::new(Mutex::new(TestCounter { counter: 0, max: 10 }));
+            let tc1 = Arc::new(Mutex::new(TestCounter {
+                counter: 0,
+                max: 10,
+            }));
             let tc2 = Arc::clone(&tc1);
 
-            rt.block_on(
-                async {
-                    let sc1 = Scheduler::new(Scheduling::Periodic(Duration::from_millis(100)), Event::Tick, tc1);
-                    let sc2 = Scheduler::new(Scheduling::Periodic(Duration::from_millis(50)), Event::Tock, tc2);
+            rt.block_on(async {
+                let sc1 = Scheduler::new(
+                    Scheduling::Periodic(Duration::from_millis(100)),
+                    Event::Tick,
+                    tc1,
+                );
+                let sc2 = Scheduler::new(
+                    Scheduling::Periodic(Duration::from_millis(50)),
+                    Event::Tock,
+                    tc2,
+                );
 
-                    sc1.stop().await.unwrap();
-                    sc2.abort();
-                })
+                sc1.stop().await.unwrap();
+                sc2.abort();
+            })
         }
 
         #[test]
         fn periodic_at() {
             let rt = tokio::runtime::Runtime::new().unwrap();
-            let tc1 = Arc::new(Mutex::new(TestCounter { counter: 0, max: 10 }));
+            let tc1 = Arc::new(Mutex::new(TestCounter {
+                counter: 0,
+                max: 10,
+            }));
             let tc2 = Arc::clone(&tc1);
 
-            rt.block_on(
-                async {
-                    let at = Instant::now().add(Duration::from_millis(500));
-                    let sc1 = Scheduler::new(Scheduling::PeriodicAt(at, Duration::from_millis(100)), Event::Tick, tc1);
-                    let sc2 = Scheduler::new(Scheduling::Periodic(Duration::from_millis(50)), Event::Tock, tc2);
+            rt.block_on(async {
+                let at = Instant::now().add(Duration::from_millis(500));
+                let sc1 = Scheduler::new(
+                    Scheduling::PeriodicAt(at, Duration::from_millis(100)),
+                    Event::Tick,
+                    tc1,
+                );
+                let sc2 = Scheduler::new(
+                    Scheduling::Periodic(Duration::from_millis(50)),
+                    Event::Tock,
+                    tc2,
+                );
 
-                    sc1.stop().await.unwrap();
-                    sc2.abort();
-                })
+                sc1.stop().await.unwrap();
+                sc2.abort();
+            })
         }
 
         #[test]
         fn once() {
             let rt = tokio::runtime::Runtime::new().unwrap();
-            let tc1 = Arc::new(Mutex::new(TestCounter { counter: 0, max: 10 }));
+            let tc1 = Arc::new(Mutex::new(TestCounter {
+                counter: 0,
+                max: 10,
+            }));
             let tc2 = Arc::clone(&tc1);
 
-            rt.block_on(
-                async {
-                    let sc1 = Scheduler::new(Scheduling::Periodic(Duration::from_millis(100)), Event::Tick, tc1);
-                    let at = Instant::now().add(Duration::from_millis(500));
-                    let sc2 = Scheduler::new(Scheduling::OnceAt(at), Event::Tock, tc2);
+            rt.block_on(async {
+                let sc1 = Scheduler::new(
+                    Scheduling::Periodic(Duration::from_millis(100)),
+                    Event::Tick,
+                    tc1,
+                );
+                let at = Instant::now().add(Duration::from_millis(500));
+                let sc2 = Scheduler::new(Scheduling::OnceAt(at), Event::Tock, tc2);
 
-                    sc1.stop().await.unwrap();
-                    sc2.abort();
-                })
+                sc1.stop().await.unwrap();
+                sc2.abort();
+            })
         }
 
         #[test]
@@ -225,7 +264,7 @@ mod tests {
                             self.counter += 1;
                             Ok(true)
                         }
-                        Event::Tock => Err("Tock is invalid".into())
+                        Event::Tock => Err("Tock is invalid".into()),
                     }
                 }
             }
@@ -234,40 +273,45 @@ mod tests {
             let tc1 = Arc::new(Mutex::new(FailedCounter { counter: 0 }));
             let tc2 = Arc::clone(&tc1);
 
-            rt.block_on(
-                async {
-                    let sc1 = Scheduler::new(Scheduling::Periodic(Duration::from_millis(100)), Event::Tick, tc1);
-                    let at = Instant::now().add(Duration::from_millis(100));
-                    let sc2 = Scheduler::new(Scheduling::OnceAt(at), Event::Tock, tc2);
+            rt.block_on(async {
+                let sc1 = Scheduler::new(
+                    Scheduling::Periodic(Duration::from_millis(100)),
+                    Event::Tick,
+                    tc1,
+                );
+                let at = Instant::now().add(Duration::from_millis(100));
+                let sc2 = Scheduler::new(Scheduling::OnceAt(at), Event::Tock, tc2);
 
-                    sc2.stop().await.unwrap_err();
-                    sc1.abort();
-                })
+                sc2.stop().await.unwrap_err();
+                sc1.abort();
+            })
         }
-
 
         #[test]
         fn handler_has_chrased() {
-            struct FailedCounter ();
+            struct FailedCounter();
 
             #[async_trait]
             impl SchedulerEventHandler<Event> for FailedCounter {
                 async fn handle_timer_event(&mut self, _event: &Event) -> Res<bool> {
-                   panic!()
+                    panic!()
                 }
             }
 
             let rt = tokio::runtime::Runtime::new().unwrap();
-            let tc = Arc::new(Mutex::new(FailedCounter ()));
+            let tc = Arc::new(Mutex::new(FailedCounter()));
 
-            rt.block_on(
-                async {
-                    let sc = Scheduler::new(Scheduling::Periodic(Duration::from_millis(10)), Event::Tick, tc);
+            rt.block_on(async {
+                let sc = Scheduler::new(
+                    Scheduling::Periodic(Duration::from_millis(10)),
+                    Event::Tick,
+                    tc,
+                );
 
-                    tokio::time::sleep(Duration::from_millis(50)).await;
+                tokio::time::sleep(Duration::from_millis(50)).await;
 
-                    sc.stop().await.unwrap_err();
-                })
+                sc.stop().await.unwrap_err();
+            })
         }
     }
 }

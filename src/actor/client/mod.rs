@@ -1,4 +1,4 @@
-//! Define clients which belong to actors, which can process messages, requests or both of them.
+//! This module define clients which belong to actors.
 pub mod hybrid;
 pub mod message;
 pub mod request;
