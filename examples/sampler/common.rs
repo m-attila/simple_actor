@@ -10,12 +10,12 @@ pub type Measurement = u32;
 pub struct Average {
     /// Time markup
     pub time: DateTime<Utc>,
-    /// Averages of the measurements
+    /// Averages
     pub average: Measurement,
 }
 
 impl Average {
-    /// Creates new instance
+    /// Create new instance
     pub fn new(average: Measurement) -> Self {
         Self {
             time: Utc::now(),
@@ -23,12 +23,12 @@ impl Average {
         }
     }
 
-    /// Returns the timestamp markup
+    /// Return the timestamp markup
     pub fn time(&self) -> DateTime<Utc> {
         self.time
     }
 
-    /// Returns the average value
+    /// Return the average value
     pub fn average(&self) -> Measurement {
         self.average
     }
@@ -37,7 +37,7 @@ impl Average {
 #[derive(Debug, Clone)]
 /// Messages which received by sampler
 pub enum SampleMessages {
-    /// Stores measurement value
+    /// Store measurement value
     Store(Measurement),
     /// Scheduled message. The received measurement data will be averaged between two `MarkPosition`
     /// time markups.
@@ -54,5 +54,5 @@ pub enum SampleRequest {
 pub enum SampleResponse {
     /// Response of `SampleRequest::GetAverages` request. Contains all averages which was collected
     /// on each time markups.
-    Averages(Vec<Average>)
+    Averages(Vec<Average>),
 }

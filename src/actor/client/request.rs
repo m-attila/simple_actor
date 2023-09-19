@@ -17,57 +17,76 @@ pub trait ActorRequestClient: Send + Sync {
 
 /// Client for request sending
 pub(crate) struct ActorRequestClientImpl<MR, R, ME = ()>
-    where MR: Send,
-          R: Send,
-          ME: Send {
+where
+    MR: Send,
+    R: Send,
+    ME: Send,
+{
     name: String,
     sender: mpsc::Sender<Command<ME, MR, R>>,
 }
 
 impl<MR, R, ME> ActorRequestClientImpl<MR, R, ME>
-    where MR: Send,
-          R: Send,
-          ME: Send {
-    /// Creates new client implementation
+where
+    MR: Send,
+    R: Send,
+    ME: Send,
+{
+    /// Create new client implementation
     pub(crate) fn new(name: String, sender: mpsc::Sender<Command<ME, MR, R>>) -> Self {
         ActorRequestClientImpl { name, sender }
     }
 
-    /// Returns the name of the the actor what belongs to this client
+    /// Return the name of the the actor which belongs to this client
     fn name(&self) -> String {
         self.name.clone()
     }
-
 }
 
 #[async_trait]
 impl<MR, R, ME> ActorRequestClient for ActorRequestClientImpl<MR, R, ME>
-    where MR: Send + Debug,
-          R: Send + Debug,
-          ME: Send + Debug{
+where
+    MR: Send + Debug,
+    R: Send + Debug,
+    ME: Send + Debug,
+{
     type Request = MR;
     type Reply = R;
 
     async fn request(&self, m: MR) -> Res<R> {
         let (send_reply, rec_reply) = oneshot::channel();
-        trace!("`{}` actor client will send request: `{:?}`", self.name(), &m);
+        trace!(
+            "`{}` actor client will send this request: `{:?}`",
+            self.name(),
+            &m
+        );
         match self.sender.send(Command::Request(m, send_reply)).await {
-            Ok(_) => {
-                match rec_reply.await {
-                    Ok(reply) => {
-                        trace!("`{}` actor client reply was received: `{:?}`", self.name(), &reply);
-                        reply
-                    },
-                    Err(e) => Err({
-                        error!("`{}` actor client unable to receive reply: `{:?}`", self.name(), e);
-                        SimpleActorError::Receive.into()
-                    })
+            Ok(_) => match rec_reply.await {
+                Ok(reply) => {
+                    trace!(
+                        "`{}` actor client reply was received: `{:?}`",
+                        self.name(),
+                        &reply
+                    );
+                    reply
                 }
-            }
+                Err(e) => Err({
+                    error!(
+                        "`{}` actor client unable to receive reply: `{:?}`",
+                        self.name(),
+                        e
+                    );
+                    SimpleActorError::Receive.into()
+                }),
+            },
             Err(e) => Err({
-                error!("`{}` actor client unable to send request: `{:?}`", self.name(), e);
+                error!(
+                    "`{}` actor client unable to send request: `{:?}`",
+                    self.name(),
+                    e
+                );
                 SimpleActorError::Send.into()
-            })
+            }),
         }
     }
 }

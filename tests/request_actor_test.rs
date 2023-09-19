@@ -27,7 +27,7 @@ enum Response {
 
 /// test actor
 struct TestActor {
-    counter: Number
+    counter: Number,
 }
 
 #[async_trait]
@@ -45,9 +45,7 @@ impl RequestHandler for TestActor {
                     Ok(Response::Success)
                 }
             }
-            Request::Get => {
-                Ok(Response::CurrentValue(self.counter))
-            }
+            Request::Get => Ok(Response::CurrentValue(self.counter)),
         }
     }
 }
@@ -83,7 +81,9 @@ fn request_actor() {
 
         if let Response::CurrentValue(get_counter) = client.request(Request::Get).await.unwrap() {
             assert_eq!(sum, get_counter);
-        } else { panic!("Bad response!") }
+        } else {
+            panic!("Bad response!")
+        }
 
         let exit = actor.stop().await;
         info!("Exit with: {:?}", exit);
@@ -92,4 +92,3 @@ fn request_actor() {
         client.request(Request::Inc(1)).await.unwrap_err();
     })
 }
-

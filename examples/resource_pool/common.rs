@@ -5,7 +5,7 @@ use async_trait::async_trait;
 /// Common error type
 pub type Error = Box<dyn std::error::Error>;
 
-/// Resource factory creates new resources or checks healthy of an existing.
+/// Resource factory creates new resource or checks the healthy of an existing one.
 #[async_trait]
 pub trait ResourceFactory<T>: Send + Sync {
     /// Create new resource

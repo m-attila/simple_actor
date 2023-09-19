@@ -4,16 +4,16 @@ extern crate uuid;
 
 use std::fmt::{Debug, Error, Formatter};
 
-use self::uuid::Uuid;
 use self::simple_actor::actor::client::message::ActorMessageClient;
+use self::uuid::Uuid;
 
 /// JSON content type in messages
 pub type Json = String;
 /// Topic identifier
 pub type Topic = String;
-/// Consumer actor's client reference for subscribing
-pub type ConsumerRef = Box<dyn ActorMessageClient<Message=ConsumerMessages>>;
-/// Unique if of consumer client for subscribing and unsubscribing
+/// Consumer actor's client reference type for subscribing
+pub type ConsumerRef = Box<dyn ActorMessageClient<Message = ConsumerMessages>>;
+/// Unique id for consumer client to subscribe and unsubscribe
 pub type ConsumerId = Uuid;
 
 /// Message type for message broker
@@ -36,31 +36,33 @@ impl JsonMessage {
         Self { topic, body }
     }
 
-    /// Returns topic ID
+    /// Return topic ID
     pub fn topic(&self) -> &Topic {
         &self.topic
     }
 
-    /// Returns JSON body
-    pub fn body(&self) -> &Json { &self.body }
+    /// Return JSON body
+    pub fn body(&self) -> &Json {
+        &self.body
+    }
 }
 
-/// Message to MessageBroker
+/// Message to `MessageBroker`
 #[derive(Debug)]
 pub enum BrokerMessages {
-    /// Push new message intro broker queue
+    /// Push a new message into broker queue
     Push(JsonMessage),
 }
 
-/// Requests to MessageBroker
+/// Requests to `MessageBroker`
 pub enum BrokerRequests {
     /// New consumer client subscription for a topic
     Subscribe(Topic, ConsumerId, ConsumerRef),
-    /// Consumer client unsubscription from the topic
+    /// Unsubscription from a topic
     Unsubscribe(Topic, ConsumerId),
 }
 
-/// Possible responses for MessageBroker's requests
+/// Possible responses for `MessageBroker's` requests
 #[derive(Debug, PartialEq)]
 pub enum BrokerResponses {
     /// Subscription was succeeded
@@ -69,8 +71,6 @@ pub enum BrokerResponses {
     Unsubscribed,
 }
 
-/// Debug implementation for BrokerRequest
-/// Manual implementation prevents that the ConsumerRef needs to be implement Debug trait
 impl Debug for BrokerRequests {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         match self {

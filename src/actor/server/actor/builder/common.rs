@@ -1,15 +1,15 @@
 use log::{error, info};
 
 use crate::actor::server::actor::builder::one_shot::OneShotActorBuilder;
+use crate::actor::server::actor::builder::reusable::ReusableActorBuilder;
 use crate::common::StateHandler;
 use crate::Res;
-use crate::actor::server::actor::builder::reusable::ReusableActorBuilder;
 
 /// Generic actor builder
 pub struct ActorBuilder {
     /// receive buffer size can be set by builder
     pub(crate) receive_buffer_size: usize,
-    /// Actor's name
+    /// actor's name
     pub(crate) name: String,
 }
 
@@ -27,13 +27,13 @@ impl ActorBuilder {
         Default::default()
     }
 
-    /// Sets receive buffer size
+    /// Set receive buffer size
     pub fn receive_buffer_size(mut self, receive_buffer_size: usize) -> Self {
         self.receive_buffer_size = receive_buffer_size;
         self
     }
 
-    /// Sets the actor's name
+    /// Set the actor's name
     pub fn name(mut self, name: &str) -> Self {
         self.name = name.to_string();
         self
@@ -48,10 +48,9 @@ impl ActorBuilder {
     pub fn reusable(self) -> ReusableActorBuilder {
         ReusableActorBuilder::new(self)
     }
-
 }
 
-/// Default state handler which used by actor, when custom handler is not set
+/// Default state handler which used by actor, when the custom handler has not set
 pub(crate) struct DefaultStateHandler {}
 
 impl DefaultStateHandler {
@@ -62,15 +61,15 @@ impl DefaultStateHandler {
 
 impl StateHandler for DefaultStateHandler {
     fn init(&mut self, name: String) -> Res<()> {
-        info!("`{}` actor was initialized successfully", name);
+        info!("`{}` actor has initialized successfully", name);
         Ok(())
     }
 
     fn terminate(&mut self, name: String, reason: &Res<()>) {
         if reason.is_ok() {
-            info!("{} actor terminated with result: {:?}", name, reason)
+            info!("{} actor has terminated with result: {:?}", name, reason)
         } else {
-            error!("{} actor terminated with error: {:?}", name, reason)
+            error!("{} actor has terminated with error: {:?}", name, reason)
         }
     }
 }

@@ -1,33 +1,35 @@
-//! Simple actor library
+//! ## Simple actor library
 //!
-//! This library provides actor model implementation which based on `tokio` crate. This model was
+//! This library provides actor model implementation which is based on `tokio` crate. This model was
 //! inspired by `gen_server` module of `Erlang` ecosystem. `gen_server` is an actor which
-//! receives and processes serial of commands, which could change its internal state during the execution.
-//! The commands can be *messages* and *requests*. Message is processed by asynchronously, independent from
-//! caller's running.
-//! The request is processed by synchronously, the caller waits for its result. If the internal processing of the request
-//! is synchronous, actor could not receive the next command until the previous has finished. The internal request
-//! processing could be asynchronous too, when it starts a new task with the `tokio::task::spawn_blocking` or `tokio::spawn` methods,
-//! so the actor could go for the next command during its execution. When the thread execution has finished,
-//! its result will be send by an other request to the actor again. This new request can be synchronous
-//! which could change the actor state, and this, as a reply could go back to the client, as the original request's result.
-//! If the new request is asynchronous again, it will start a new thread for a new computation.
+//! receives and processes commands, which could change actor's internal state during the execution.
+//! A command is either a *message* or a *request*. A message is processed by asynchronously, but the request is synchronous.
+//! Synchronous processing means that the caller must wait for the end of the message processing. If a caller sends an asynchronous message
+//! it continues its running without any waiting.
 //!
-//! ### There are three types of actors are available
+//! ### About command processing
 //!
-//! * *message actor* - that processes asynchronous messages,
-//! * *request actor* - that processes synchronous request,
-//! * *hybrid actor* - that unifies previous two types.
+//! Actor can process only one command at once, in other words it serializes received commands. But the internal command
+//! processing could be asynchronous too, if this processing occurs within a task which is started by either `tokio::task::spawn_blocking`
+//! or `tokio::spawn` methods. In this case the actor could deal with the next command before the previous one has been finished.
+//! When such a task execution has been finished, the actor sends its result as another request to itself.
+//! This self-request can be synchronous which could change the actor state and after changing as a reply could send back to the client.
+//! Or this self-request can be asynchronous again, to start a new task for a new computation.
+//!
+//! #### There are three types of actors are available
+//!
+//! * *message actor* processes asynchronous messages,
+//! * *request actor* processes synchronous request,
+//! * *hybrid actor* unifies previous two types.
 //!
 //! # Build an actor
 //!
-//! Actors can build by [`ActorBuilder`](struct@crate::ActorBuilder)
-//! The builder has several method to build different types of actors.
+//! Actors can build by [`ActorBuilder`](struct@crate::ActorBuilder).
+//! The builder has several methods to build different types of actors.
 //!
 //! ## MessageActor
 //!
-//! * [`ActorBuilder`](struct@crate::ActorBuilder) creates such actor
-//! which can receive only messages
+//! * [`ActorBuilder`](struct@crate::ActorBuilder) creates such an actor which can receive only messages.
 //!
 //! ### Example
 //!
@@ -38,13 +40,8 @@
 //! use simple_actor::ActorBuilder;
 //!
 //! /// Actor which contains a counter
+//! #[derive(Default)]
 //! struct TestActor(i32);
-//!
-//! impl Default for TestActor{
-//!     fn default() -> Self {
-//!         Self(0)
-//!     }
-//! }
 //!
 //! /// Available messages
 //! #[derive(Debug)]
@@ -55,7 +52,7 @@
 //!     Dec(i32),
 //! }
 //!
-//! /// Implements how does the actor handle the messages
+//! /// Implements how the actor handles messages
 //! #[async_trait]
 //! impl MessageHandler for TestActor{
 //!     // Type of actor messages
@@ -78,21 +75,21 @@
 //!     let actor = ActorBuilder::new()
 //!         // actor's name (optional)
 //!         .name("test_actor")
-//!         // maximal size of the the messages' receiving buffer
+//!         // upper bound of the number of messages
 //!         .receive_buffer_size(128)
-//!         // builder could be use only once
+//!         // builder can build only one actor at once
 //!         .one_shot()
-//!         // set actor type and handler
+//!         // set the actor's type and its command handler
 //!         .message_actor(Box::new(TestActor::default()))
 //!         // build the actor
 //!         .build();
 //!
-//!     // Create client for actor
+//!     // Create a client for the actor
 //!     let actor_client = actor.client();
 //!
-//!     // Send increment message
+//!     // Send an `increment` message
 //!     actor_client.message(ActorMessages::Inc(10)).await.unwrap();
-//!     // Send decrement message
+//!     // Send a `decrement` message
 //!     actor_client.message(ActorMessages::Dec(5)).await.unwrap();
 //!
 //!     // Stop the actor
@@ -103,8 +100,7 @@
 //!
 //! ## RequestActor
 //!
-//! * [`ActorBuilder`](struct@crate::ActorBuilder) creates such actor
-//! which can receive only requests
+//! * [`ActorBuilder`](struct@crate::ActorBuilder) creates such an actor which can receive only requests.
 //!
 //! ### Example
 //!
@@ -114,13 +110,10 @@
 //! use simple_actor::{RequestHandler, Res};
 //! use simple_actor::ActorBuilder;
 //!
-//! // ...Test actor implementation from the previous example...
+//! // ..Put test actor implementation here from the previous example...
+//! # #[derive(Default)]
 //! # struct TestActor(i32);
-//! # impl Default for TestActor{
-//! #      fn default() -> Self {
-//! #          Self(0)
-//! #      }
-//! # }
+//!
 //! /// Available requests
 //! #[derive(Debug)]
 //! enum ActorRequests {
@@ -139,7 +132,7 @@
 //!     Counter(i32),
 //! }
 //!
-//! /// Implements how does the actor handle the requests
+//! /// Implements how the actor handles requests
 //! #[async_trait]
 //! impl RequestHandler for TestActor{
 //!     // Type of the requests
@@ -152,10 +145,12 @@
 //!             // Increment the counter
 //!             ActorRequests::Inc(inc) => {
 //!                 self.0 += inc;
+//!                 // Return the response
 //!                 Ok(ActorResponses::Success)
 //!             }
 //!             // Get counter value
 //!             ActorRequests::Get => {
+//!                 // Return the response
 //!                 Ok(ActorResponses::Counter(self.0))
 //!             }
 //!         }
@@ -164,25 +159,25 @@
 //!
 //! #[tokio::main]
 //! pub async fn main() {
-//!     // Create new actor with the builder
+//!     // Create a new actor with the builder
 //!     let actor = ActorBuilder::new()
 //!         // actor's name
 //!         .name("test_actor")
-//!         // the maximal size of the request receiving buffer
+//!         // upper bound of the number of messages
 //!         .receive_buffer_size(128)
-//!         // builder could be use only once
+//!         // builder can build only one actor at once
 //!         .one_shot()
-//!         // set actor type and handler
+//!         // set the actor's type and its command handler
 //!         .request_actor(Box::new(TestActor::default()))
 //!         // build the actor
 //!         .build();
 //!
-//!     // Create client for actor
+//!     // Create a client for the actor
 //!     let actor_client = actor.client();
 //!
-//!     // Send increment request and wait for the response
+//!     // Send an `increment` request and wait for the response
 //!     assert_eq!(ActorResponses::Success, actor_client.request(ActorRequests::Inc(10)).await.unwrap());
-//!     // Send get request and wait for the response
+//!     // Send a `get` request and wait for the response
 //!     assert_eq!(ActorResponses::Counter(10), actor_client.request(ActorRequests::Get).await.unwrap());
 //!
 //!     // Stop the actor
@@ -193,8 +188,7 @@
 //!
 //! ## HybridActor
 //!
-//! * [`ActorBuilder`](struct@crate::ActorBuilder) creates such actor
-//! which can receive both messages and requests
+//! * [`ActorBuilder`](struct@crate::ActorBuilder) creates such an actor which can receive messages and requests as well.
 //!
 //! ### Example
 //!
@@ -204,20 +198,17 @@
 //! use simple_actor::ActorBuilder;
 //! use simple_actor::{MessageHandler, RequestHandler, Res};
 //!
-//! // ...Test actor implementation from the messages actor's example...
-//! # struct TestActor(i32);
-//! # impl Default for TestActor{
-//! #     fn default() -> Self {
-//! #         Self(0)
-//! #     }
-//! # }
+//! // ...Put test actor implementation here from the first example...
+//! /// Available messages
 //! # #[derive(Debug)]
 //! # enum ActorMessages{
-//! #     /// Increment the counter
-//! #     Inc(i32),
-//! #     /// Decrement the counter
-//! #     Dec(i32),
-//! #  }
+//! #    /// Increment the counter
+//! #    Inc(i32),
+//! #    /// Decrement the counter
+//! #    Dec(i32),
+//! # }
+//! # #[derive(Default)]
+//! # struct TestActor(i32);
 //! /// Available requests
 //! #[derive(Debug)]
 //! enum ActorRequests{
@@ -232,7 +223,7 @@
 //!     Value(i32)
 //! }
 //!
-//! /// Implements how does the actor handle the messages
+//! /// Implements how the actor handles messages
 //! #[async_trait]
 //! impl MessageHandler for TestActor{
 //!     // Type of actor messages
@@ -258,7 +249,7 @@
 //!     type Reply = ActorResponses;
 //!
 //!     async fn process_request(&mut self, request: Self::Request) -> Res<Self::Reply> {
-//!         // Returns with the counter's value
+//!         // Returns the counter's value
 //!         Ok(ActorResponses::Value(self.0))
 //!     }
 //! }
@@ -266,27 +257,27 @@
 //!
 //! #[tokio::main]
 //! pub async fn main() {
-//!     // Create new actor with the builder
+//!     // Create a new actor with the builder
 //!     let actor = ActorBuilder::new()
 //!         // actor's name (optional)
 //!         .name("test_actor")
-//!         // the maximal size of receiving buffer
+//!         // upper bound of the number of messages
 //!         .receive_buffer_size(128)
-//!         // builder could be use only once
+//!         // builder can build only one actor at once
 //!         .one_shot()
-//!         // set actor type and handler
+//!         // set actor type and its handler
 //!         .hybrid_actor(Box::new(TestActor::default()))
 //!         // build the actor
 //!         .build();
 //!
-//!     // Create client for actor
+//!     // Create a client for actor
 //!     let actor_client = actor.client();
 //!
-//!     // Send increment message
+//!     // Send an `increment` message
 //!     actor_client.message(ActorMessages::Inc(10)).await.unwrap();
-//!     // Send decrement message
+//!     // Send a `decrement` message
 //!     actor_client.message(ActorMessages::Dec(5)).await.unwrap();
-//!     // Get counter's value
+//!     // Get the counter's value
 //!     assert_eq!(ActorResponses::Value(10 - 5), actor_client.request(ActorRequests::Get).await.unwrap());
 //!
 //!     // Stop the actor
@@ -297,9 +288,9 @@
 //!
 //! # Scheduling messages
 //!
-//! In the crate there is a scheduler mechanism, it can work together with those actors, which can receive messages.
+//! In this crate there is a scheduler mechanism, which can work together with those actors can receive messages.
 //! The [`MessageScheduler`](struct@crate::MessageScheduler) periodically sends messages into the actor which belongs to the scheduler.
-//! One message actor may has more than one schedulers.
+//! A message actor can have more schedulers at a time.
 //!
 //!  ### Example
 //!
@@ -310,12 +301,9 @@
 //! use tokio::time::Duration;
 //!
 //! # /// Actor which contains a counter
+//! # #[derive(Default)]
 //! # struct TestActor(i32);
-//! # impl Default for TestActor{
-//! #    fn default() -> Self {
-//! #        Self(0)
-//! #    }
-//! # }
+//!
 //! # /// Available messages
 //! # #[derive(Debug, Clone)]
 //! # enum ActorMessages{
@@ -343,29 +331,29 @@
 //!
 //! #[tokio::main]
 //! pub async fn main() {
-//!     // Create new actor with the builder
+//!     use simple_actor::Scheduling;
+//!     // Create a new actor with the builder
 //!
-//! use simple_actor::Scheduling;
-//! let actor = ActorBuilder::new()
+//!     let actor = ActorBuilder::new()
 //!         // actor's name (optional)
 //!         .name("test_actor")
-//!         // the message receiving buffer maximal size
+//!         // upper bound of the number of messages
 //!         .receive_buffer_size(128)
-//!         // builder could be use only once
+//!         // builder can build only one actor at once
 //!         .one_shot()
-//!         // set actor type and handler
+//!         // set actor type and it's handler
 //!         .message_actor(Box::new(TestActor::default()))
 //!         // build the actor
 //!         .build();
 //!
-//!     // Create client for actor
+//!     // Create a client for actor
 //!     let actor_client_1 = actor.client();
-//!     // Create client for actor
+//!     // Create another client for the actor
 //!     let actor_client_2 = actor.client();
 //!
-//!     // Every 30 milliseconds sends an increment by 10 message to the actor
+//!     // In every 30 milliseconds the scheduler sends an `increment by 10 message` to the actor
 //!     let message_scheduler_1 = MessageScheduler::new(ActorMessages::Inc(10), Scheduling::Periodic(Duration::from_millis(30)), actor_client_1);
-//!     // Every 60 milliseconds sends a decrement by 5 message to the actor
+//!     // In every 60 milliseconds the scheduler sends a `decrement by 5 message` to the actor
 //!     let message_scheduler_2 = MessageScheduler::new(ActorMessages::Dec(5), Scheduling::Periodic(Duration::from_millis(60)), actor_client_2);
 //!
 //!     // Stop the actor first
@@ -375,41 +363,48 @@
 //!     message_scheduler_2.stop().await.unwrap_err();
 //! }
 //! ```
-//!
-//! ### Other examples
+//! #### Other examples
 //!
 //! * `heavy_computation`
-//! Introduces how can be execute asynchronous request, and how can they modify the actor's state
-//! depend of their execution results.
+//!
+//! It introduces how can execute asynchronous request, and how the request can modify the actor's internal state
+//! according its execution result.
+//!
 //! * `message_broker_with_actor_consumers`
-//! Introduces a public-subscribe messaging example for several topics, where the topic handler and the
+//!
+//! It introduces a public-subscribe messaging example for several topics, where the topic handler and
 //! subscribers are actors.
+//!
 //! * `message_broker_with_dyn_consumers`
-//! Introduces a public-subscriber messaging example for several topics, similary as the previous example,
-//! but only the topic handler is an actor, the clients are simple dynamic trait implementations.
+//!
+//! It introduces a public-subscribe messaging example for several topics, similarly as in the previous example,
+//! but only the topic handler is an actor, clients are simple dynamic trait implementations.
+//!
 //! * `resource_pool`
-//! This example introduces a resource pool handler, where the clients send their callback functions to the actor.
-//! This functions generate an asycnhronous operation, which uses the allocated resource. The resource pool handles
-//! a set of resources which can be permanent and temporary ones. The pool keeps the permanent resources and
-//! when the load in increasing, it creates temporary ones, with a given idle time threshold. After the load goes down,
-//! and the idle time has elapsed, temporary resources will be dropped.
+//!
+//! This example introduces a resource pool handler, where clients send their callback functions to the actor.
+//! These callbacks can execute any asynchronous operation, which works an allocated resource from the pool.
+//! The resource pool handles such resources which are usable either permanently or temporarily.
+//! Usually the pool keeps only permanent resources but when the load in increasing, on demand creates temporary ones.
+//! After the load goes down and the temporary resources are idle, they will be disposed.
+//!
 //! * `sampler`
-//! This example shows, how can be attach schedulers to the actors. The schedulers transform timer events
-//! into messages which can be handled in the actors.
 //!
-//! # Logging
+//! This example shows how schedulers can be attached to actors. Schedulers transform timer events into messages
+//! which can be handled in the actors.
 //!
-//! Simple actor was integrated with [`log`](https://crates.io/crates/log) crate.
+//! ## Logging
 //!
+//! Simple actor was integrated with [`log`](https://!crates.io/crates/log) crate.
 
-pub mod common;
 pub mod actor;
+pub mod common;
 
-pub use crate::common::{MessageHandler, RequestHandler, Res, ActorError};
-pub use crate::actor::server::actor::builder::common::ActorBuilder;
-pub use crate::actor::client::scheduler::common::Scheduling;
-pub use crate::actor::client::scheduler::message::MessageScheduler;
+pub use crate::actor::client::hybrid::ActorHybridClient;
 pub use crate::actor::client::message::ActorMessageClient;
 pub use crate::actor::client::request::ActorRequestClient;
-pub use crate::actor::client::hybrid::ActorHybridClient;
+pub use crate::actor::client::scheduler::common::Scheduling;
+pub use crate::actor::client::scheduler::message::MessageScheduler;
 pub use crate::actor::client::sync::message::MessageActorNotify;
+pub use crate::actor::server::actor::builder::common::ActorBuilder;
+pub use crate::common::{ActorError, MessageHandler, RequestHandler, Res};

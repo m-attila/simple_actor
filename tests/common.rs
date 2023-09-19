@@ -3,7 +3,7 @@ pub type Number = u128;
 // Error response from actor
 #[derive(Debug)]
 pub struct NumError {
-    pub value: Number
+    pub value: Number,
 }
 
 impl std::fmt::Display for NumError {

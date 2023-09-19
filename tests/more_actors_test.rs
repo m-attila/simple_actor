@@ -50,24 +50,41 @@ mod producer {
     /// Producer
     pub struct Producer {
         /// Client of summary calculator consumer actor
-        sum_consumer: Option<Box<dyn ActorHybridClient<consumer::Messages, consumer::Requests, consumer::Replies>>>,
+        sum_consumer: Option<
+            Box<dyn ActorHybridClient<consumer::Messages, consumer::Requests, consumer::Replies>>,
+        >,
         /// Client of average calculator consumer actor
-        avg_consumer: Option<Box<dyn ActorHybridClient<consumer::Messages, consumer::Requests, consumer::Replies>>>,
+        avg_consumer: Option<
+            Box<dyn ActorHybridClient<consumer::Messages, consumer::Requests, consumer::Replies>>,
+        >,
     }
 
     impl Producer {
         /// Creates new producer actor
         pub fn new() -> Self {
-            Producer { sum_consumer: None, avg_consumer: None }
+            Producer {
+                sum_consumer: None,
+                avg_consumer: None,
+            }
         }
 
         /// Set summary calculator actor's client
-        pub fn set_sum_client(&mut self, client: Box<dyn ActorHybridClient<consumer::Messages, consumer::Requests, consumer::Replies>>) {
+        pub fn set_sum_client(
+            &mut self,
+            client: Box<
+                dyn ActorHybridClient<consumer::Messages, consumer::Requests, consumer::Replies>,
+            >,
+        ) {
             self.sum_consumer = Some(client);
         }
 
         /// Set average calculator actor's client
-        pub fn set_avg_client(&mut self, client: Box<dyn ActorHybridClient<consumer::Messages, consumer::Requests, consumer::Replies>>) {
+        pub fn set_avg_client(
+            &mut self,
+            client: Box<
+                dyn ActorHybridClient<consumer::Messages, consumer::Requests, consumer::Replies>,
+            >,
+        ) {
             self.avg_consumer = Some(client);
         }
     }
@@ -81,10 +98,12 @@ mod producer {
         async fn process_request(&mut self, request: Self::Request) -> Res<Self::Reply> {
             match request {
                 Requests::Fill(from, to) => {
-                    let sc = &self.sum_consumer
+                    let sc = &self
+                        .sum_consumer
                         .as_ref()
                         .map_or(Err("no consumer client"), |c| Ok(c))?;
-                    let ac = &self.avg_consumer
+                    let ac = &self
+                        .avg_consumer
                         .as_ref()
                         .map_or(Err("no average client"), |c| Ok(c))?;
                     sc.message(consumer::Messages::Clear).await?;
@@ -97,7 +116,8 @@ mod producer {
                     Ok(Replies::Filled)
                 }
                 Requests::GetSum => {
-                    let cl = self.sum_consumer
+                    let cl = self
+                        .sum_consumer
                         .as_ref()
                         .map_or(Err("no consumer client"), |c| Ok(c))?;
                     cl.request(consumer::Requests::Calculate)
@@ -105,7 +125,8 @@ mod producer {
                         .map(|consumer::Replies::Result(n)| Replies::Sum(n))
                 }
                 Requests::GetAvg => {
-                    let cl = self.avg_consumer
+                    let cl = self
+                        .avg_consumer
                         .as_ref()
                         .map_or(Err("no average client"), |c| Ok(c))?;
                     cl.request(consumer::Requests::Calculate)
@@ -213,9 +234,9 @@ pub mod consumer {
 
         async fn process_request(&mut self, request: Self::Request) -> Res<Self::Reply> {
             match request {
-                Requests::Calculate => {
-                    Ok(Replies::Result(self.calc_fun.calculate(self.calculator.iter())))
-                }
+                Requests::Calculate => Ok(Replies::Result(
+                    self.calc_fun.calculate(self.calculator.iter()),
+                )),
             }
         }
     }
@@ -290,15 +311,26 @@ fn calc_test() {
         let prod_actor_cl = prod_actor.client();
 
         // Start producer process
-        prod_actor_cl.request(producer::Requests::Fill(0, 100_000)).await.unwrap();
+        prod_actor_cl
+            .request(producer::Requests::Fill(0, 100_000))
+            .await
+            .unwrap();
 
         // Request to get sums
-        if let Replies::Sum(sums) = prod_actor_cl.request(producer::Requests::GetSum).await.unwrap() {
+        if let Replies::Sum(sums) = prod_actor_cl
+            .request(producer::Requests::GetSum)
+            .await
+            .unwrap()
+        {
             info!("Sum is: {}", sums);
         }
 
         // Request to get averages
-        if let Replies::Avg(avgs) = prod_actor_cl.request(producer::Requests::GetAvg).await.unwrap() {
+        if let Replies::Avg(avgs) = prod_actor_cl
+            .request(producer::Requests::GetAvg)
+            .await
+            .unwrap()
+        {
             info!("Average is: {}", avgs);
         }
 

@@ -7,10 +7,10 @@ use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use tokio::time::Duration;
 
-use simple_actor::{MessageHandler, RequestHandler, Res};
 use simple_actor::ActorBuilder;
 use simple_actor::MessageScheduler;
 use simple_actor::Scheduling;
+use simple_actor::{MessageHandler, RequestHandler, Res};
 
 use crate::common::Number;
 
@@ -36,7 +36,7 @@ enum TestResponse {
 
 /// Hybrid actor
 struct HybridActor {
-    counter: Number
+    counter: Number,
 }
 
 #[async_trait]
@@ -60,9 +60,7 @@ impl RequestHandler for HybridActor {
 
     async fn process_request(&mut self, request: Self::Request) -> Res<Self::Reply> {
         match request {
-            TestRequest::Get => {
-                Ok(TestResponse::CurrentValue(self.counter))
-            }
+            TestRequest::Get => Ok(TestResponse::CurrentValue(self.counter)),
         }
     }
 }
@@ -99,12 +97,10 @@ fn hybrid_actor() {
         }
 
         // Send 'Get' request
-        let TestResponse::CurrentValue(get_counter) = client.request(TestRequest::Get)
-            .await
-            .unwrap();
+        let TestResponse::CurrentValue(get_counter) =
+            client.request(TestRequest::Get).await.unwrap();
         // check counter
         assert_eq!(sum, get_counter);
-
 
         actor.stop().await.unwrap();
     })
@@ -134,7 +130,11 @@ fn scheduled_hybrid_actor_test() {
         let client1 = actor.message_client();
 
         // start actor message scheduler
-        let message_scheduler = MessageScheduler::new(TestMessage::Inc(1), Scheduling::Periodic(Duration::from_millis(30)), client1);
+        let message_scheduler = MessageScheduler::new(
+            TestMessage::Inc(1),
+            Scheduling::Periodic(Duration::from_millis(30)),
+            client1,
+        );
 
         // waiting for 100ms
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -145,9 +145,8 @@ fn scheduled_hybrid_actor_test() {
         // The error is available by return value of stop method.
         // Send invalid value: 0
         // The message sending was succeeded, so it returns with Ok()
-        let TestResponse::CurrentValue(get_counter) = client.request(TestRequest::Get)
-            .await
-            .unwrap();
+        let TestResponse::CurrentValue(get_counter) =
+            client.request(TestRequest::Get).await.unwrap();
         // check counter
         assert!(get_counter >= 3);
 

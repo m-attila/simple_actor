@@ -7,20 +7,20 @@ use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use tokio::time::Duration;
 
-use simple_actor::{MessageHandler, Res};
 use simple_actor::ActorBuilder;
 use simple_actor::MessageScheduler;
 use simple_actor::Scheduling;
+use simple_actor::{MessageHandler, Res};
 
-use crate::common::{Number, NumError};
-use tokio::time::Instant;
+use crate::common::{NumError, Number};
 use std::ops::Add;
+use tokio::time::Instant;
 
 mod common;
 
 /// test actor logic
 struct TestActor {
-    counter: Number
+    counter: Number,
 }
 
 #[async_trait]
@@ -30,7 +30,9 @@ impl MessageHandler for TestActor {
     async fn process_message(&mut self, message: Self::Message) -> Res<()> {
         if message == 0 {
             // Error will stop actor
-            Err(Box::new(NumError { value: self.counter }))
+            Err(Box::new(NumError {
+                value: self.counter,
+            }))
         } else {
             self.counter += message;
             Ok(())
@@ -170,7 +172,6 @@ fn restartable_message_actor_test() {
             Some(num) => assert_eq!(sum, num.value),
             None => panic!("isn't a NumError type!"),
         }
-
     })
 }
 
@@ -198,7 +199,11 @@ fn scheduled_message_actor_test() {
         let client1 = actor.client();
 
         // start actor message scheduler
-        let message_scheduler = MessageScheduler::new(1u128, Scheduling::Periodic(Duration::from_millis(30)), client);
+        let message_scheduler = MessageScheduler::new(
+            1u128,
+            Scheduling::Periodic(Duration::from_millis(30)),
+            client,
+        );
 
         // waiting for 100ms
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -283,7 +288,11 @@ fn scheduled_message_actor_stop() {
         let client1 = actor.client();
 
         // start actor message scheduler
-        let message_scheduler = MessageScheduler::new(1u128, Scheduling::Periodic(Duration::from_millis(30)), client);
+        let message_scheduler = MessageScheduler::new(
+            1u128,
+            Scheduling::Periodic(Duration::from_millis(30)),
+            client,
+        );
 
         // waiting for 100ms
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -295,6 +304,5 @@ fn scheduled_message_actor_stop() {
 
         // Scheduler has stopped with error, because actor has stopped previously
         message_scheduler.stop().await.unwrap_err();
-
     })
 }

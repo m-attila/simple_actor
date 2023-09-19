@@ -7,29 +7,37 @@ use crate::actor::client::message::{ActorMessageClient, ActorMessageClientImpl};
 use crate::actor::client::request::{ActorRequestClient, ActorRequestClientImpl};
 use crate::common::{Command, Res};
 
-// Client specification which can send asynchronous requests and synchronous messages to the actor
+/// Client specification which can send asynchronous requests and synchronous messages to the actor
 #[async_trait]
 pub trait ActorHybridClient<ME, MR, R>:
-ActorMessageClient<Message=ME> +
-ActorRequestClient<Request=MR, Reply=R> + Send + Sync {}
+    ActorMessageClient<Message = ME> + ActorRequestClient<Request = MR, Reply = R> + Send + Sync
+{
+}
 
-/// Boxes message and request client traits
+/// Boxe message and request client traits
 pub(crate) struct ActorHybridClientImpl<ME, MR, R>
-    where ME: Send,
-          MR: Send,
-          R: Send {
-    message_client: Box<dyn ActorMessageClient<Message=ME> + Sync>,
-    request_client: Box<dyn ActorRequestClient<Request=MR, Reply=R> + Sync>,
+where
+    ME: Send,
+    MR: Send,
+    R: Send,
+{
+    message_client: Box<dyn ActorMessageClient<Message = ME> + Sync>,
+    request_client: Box<dyn ActorRequestClient<Request = MR, Reply = R> + Sync>,
 }
 
 impl<ME, MR, R> ActorHybridClientImpl<ME, MR, R>
-    where ME: 'static + Send + Debug,
-          MR: 'static + Send + Debug,
-          R: 'static + Send + Debug {
-    /// Creates new hybrid actor client
+where
+    ME: 'static + Send + Debug,
+    MR: 'static + Send + Debug,
+    R: 'static + Send + Debug,
+{
+    /// Create new hybrid actor client
     pub(crate) fn new(name: String, sender: mpsc::Sender<Command<ME, MR, R>>) -> Self {
         ActorHybridClientImpl {
-            message_client: Box::new(ActorMessageClientImpl::<ME, MR, R>::new(name.clone(), sender.clone())),
+            message_client: Box::new(ActorMessageClientImpl::<ME, MR, R>::new(
+                name.clone(),
+                sender.clone(),
+            )),
             request_client: Box::new(ActorRequestClientImpl::<MR, R, ME>::new(name, sender)),
         }
     }
@@ -58,4 +66,7 @@ impl<ME: Send, MR: Send, R: Send> ActorRequestClient for ActorHybridClientImpl<M
     }
 }
 
-impl<ME: Send, MR: Send, R: Send> ActorHybridClient<ME, MR, R> for ActorHybridClientImpl<ME, MR, R> {}
+impl<ME: Send, MR: Send, R: Send> ActorHybridClient<ME, MR, R>
+    for ActorHybridClientImpl<ME, MR, R>
+{
+}

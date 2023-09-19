@@ -1,3 +1,3 @@
-//! Defines several actor's servers and its clients.
+//! This module contains actor servers and clients.
 pub mod client;
 pub mod server;
