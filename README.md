@@ -29,8 +29,8 @@ Or this self-request can be asynchronous again, to start a new task for a new co
 
 #### There are three types of actors are available
 
-* *message actor* ☞ to process an asynchronous messages,
-* *request actor* ☞ to process a synchronous request,
+* *message actor* ☞ to process asynchronous messages,
+* *request actor* ☞ to process synchronous requests,
 * *hybrid actor* ☞ unifies previous two types.
 
 ## Build an actor
